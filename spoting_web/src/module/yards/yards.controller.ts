@@ -13,30 +13,38 @@ import { UpdateYardDto } from './dto/update-yard.dto';
 
 @Controller('yards')
 export class YardsController {
-  constructor(private readonly yardsService: YardsService) {}
+  constructor(private readonly service: YardsService) { }
 
   @Post()
-  create(@Body() createYardDto: CreateYardDto) {
-    return this.yardsService.create(createYardDto);
+  create(@Body() createDto: CreateYardDto) {
+    return this.service.create(createDto);
+  }
+
+  @Get('vendor/:id')
+  findYardByVendor(@Param('id') id: string) {
+    return this.service.findYardByVendor(+id);
   }
 
   @Get()
   findAll() {
-    return this.yardsService.findAll();
+    return this.service.findAll();
   }
 
   @Get(':id')
   findOne(@Param('id') id: string) {
-    return this.yardsService.findOne(+id);
+    return this.service.findOne(+id);
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateYardDto: UpdateYardDto) {
-    return this.yardsService.update(+id, updateYardDto);
+  update(
+    @Param('id') id: string,
+    @Body() updateDto: UpdateYardDto,
+  ) {
+    return this.service.update(+id, updateDto);
   }
 
   @Delete(':id')
   remove(@Param('id') id: string) {
-    return this.yardsService.remove(+id);
+    return this.service.remove(+id);
   }
 }

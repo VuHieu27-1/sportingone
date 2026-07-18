@@ -15,6 +15,8 @@ export class UsersService {
     private readonly userRepository: Repository<User>,
     @InjectRepository(Role)
     private readonly roleRepository: Repository<Role>,
+    @InjectRepository(DetailUser)
+    private readonly detailUserRepository: Repository<DetailUser>
   ) { }
 
   async create(createUserDto: CreateUserDto): Promise<User> {

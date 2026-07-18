@@ -12,18 +12,21 @@ export class DetailUser {
   @PrimaryGeneratedColumn()
   id: number;
 
+  @Column({ name: 'user_id' })
+  userId: number;
+
   @OneToOne(() => User, (user) => user.detailUser, {
     nullable: false,
     onDelete: 'CASCADE',
   })
   @JoinColumn({ name: 'user_id' })
-  user: User;
+  userRelation: User;
 
   @Column({ name: 'name', nullable: true, type: 'varchar', length: 100 })
   name: string | null;
 
-  @Column({ name: 'age', nullable: true, type: 'int' })
-  age: number | null;
+  @Column({ name: 'birthday', nullable: true, type: 'date' })
+  birthday: Date | string | null;
 
   @Column({ name: 'gender', nullable: true, type: 'varchar', length: 10 })
   gender: string | null;

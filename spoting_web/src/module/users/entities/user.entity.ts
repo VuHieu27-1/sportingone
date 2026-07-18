@@ -29,7 +29,7 @@ export class User {
   @JoinColumn({ name: 'role_id' })
   role: Role;
 
-  @OneToOne(() => DetailUser, (detailUser) => detailUser.user, {
+  @OneToOne(() => DetailUser, (detailUser) => detailUser.userRelation, {
     cascade: true,
   })
   detailUser: DetailUser;

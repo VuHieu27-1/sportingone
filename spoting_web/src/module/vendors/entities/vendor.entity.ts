@@ -35,8 +35,8 @@ export class Vendor {
   @Column({ name: 'vendor_phone', nullable: true, type: 'varchar', length: 20 })
   vendorPhone: string | null;
 
-  @Column({ name: 'status', nullable: true, type: 'varchar', length: 10 })
-  status: string | null;
+  @Column({ name: 'status', type: 'varchar', length: 10, default: 'pending' })
+  status: 'pending' | 'reject' | 'active';
 
   @Column({ name: 'created_at', default: () => 'CURRENT_TIMESTAMP' })
   createdAt: Date;

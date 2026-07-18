@@ -1,0 +1,49 @@
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository, DeepPartial } from 'typeorm';
+import { CreateSportTypeDto } from './dto/create-sport-type.dto';
+import { UpdateSportTypeDto } from './dto/update-sport-type.dto';
+import { SportType } from './entities/sport-type.entity';
+
+@Injectable()
+export class SportTypesService {
+  constructor(
+    @InjectRepository(SportType) private readonly repository: Repository<SportType>
+  ) {}
+
+  async create(dto: CreateSportTypeDto) {
+    const entity = this.repository.create(dto as DeepPartial<SportType>);
+    
+    return this.repository.save(entity);
+  }
+
+  async findAll() {
+    return this.repository.find({
+      
+    });
+  }
+
+  async findOne(id: number) {
+    const entity = await this.repository.findOne({
+      where: { id },
+      
+    });
+    if (!entity) {
+      throw new NotFoundException(`SportType with ID ${id} not found`);
+    }
+    return entity;
+  }
+
+  async update(id: number, dto: UpdateSportTypeDto) {
+    const entity = await this.findOne(id);
+    this.repository.merge(entity, dto as any);
+    
+    return this.repository.save(entity);
+  }
+
+  async remove(id: number) {
+    const entity = await this.findOne(id);
+    await this.repository.remove(entity);
+    return "Delete success";
+  }
+}

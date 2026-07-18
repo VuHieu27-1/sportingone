@@ -1,26 +1,49 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository, DeepPartial } from 'typeorm';
 import { CreateSaleDto } from './dto/create-sale.dto';
 import { UpdateSaleDto } from './dto/update-sale.dto';
+import { Sale } from './entities/sale.entity';
 
 @Injectable()
 export class SalesService {
-  create(createSaleDto: CreateSaleDto) {
-    return 'This action adds a new sale';
+  constructor(
+    @InjectRepository(Sale) private readonly repository: Repository<Sale>
+  ) {}
+
+  async create(dto: CreateSaleDto) {
+    const entity = this.repository.create(dto as DeepPartial<Sale>);
+    
+    return this.repository.save(entity);
   }
 
-  findAll() {
-    return `This action returns all sales`;
+  async findAll() {
+    return this.repository.find({
+      
+    });
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} sale`;
+  async findOne(id: number) {
+    const entity = await this.repository.findOne({
+      where: { id },
+      
+    });
+    if (!entity) {
+      throw new NotFoundException(`Sale with ID ${id} not found`);
+    }
+    return entity;
   }
 
-  update(id: number, updateSaleDto: UpdateSaleDto) {
-    return `This action updates a #${id} sale`;
+  async update(id: number, dto: UpdateSaleDto) {
+    const entity = await this.findOne(id);
+    this.repository.merge(entity, dto as any);
+    
+    return this.repository.save(entity);
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} sale`;
+  async remove(id: number) {
+    const entity = await this.findOne(id);
+    await this.repository.remove(entity);
+    return "Delete success";
   }
 }

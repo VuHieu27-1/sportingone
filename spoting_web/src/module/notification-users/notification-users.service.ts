@@ -1,0 +1,77 @@
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository, DeepPartial } from 'typeorm';
+import { CreateNotificationUserDto } from './dto/create-notification-user.dto';
+import { UpdateNotificationUserDto } from './dto/update-notification-user.dto';
+import { NotificationUser } from './entities/notification-user.entity';
+import { Notification } from '../notifications/entities/notification.entity';
+import { User } from '../users/entities/user.entity';
+
+@Injectable()
+export class NotificationUsersService {
+  constructor(
+    @InjectRepository(NotificationUser) private readonly repository: Repository<NotificationUser>,
+    @InjectRepository(Notification) private readonly notificationRepository: Repository<Notification>,
+    @InjectRepository(User) private readonly receiverRepository: Repository<User>
+  ) {}
+
+  async create(dto: CreateNotificationUserDto) {
+    const { notificationId, receiverId, ...cleanDto } = dto;
+    const entity = this.repository.create(cleanDto as DeepPartial<NotificationUser>);
+    const notificationVal = await this.notificationRepository.findOne({ where: { id: dto.notificationId } });
+    if (!notificationVal) {
+      throw new NotFoundException(`Notification with ID ${dto.notificationId} not found`);
+    }
+    entity.notification = notificationVal;
+    const receiverVal = await this.receiverRepository.findOne({ where: { id: dto.receiverId } });
+    if (!receiverVal) {
+      throw new NotFoundException(`User with ID ${dto.receiverId} not found`);
+    }
+    entity.receiver = receiverVal;
+    return this.repository.save(entity);
+  }
+
+  async findAll() {
+    return this.repository.find({
+      relations: { notification: true, receiver: true }
+    });
+  }
+
+  async findOne(id: number) {
+    const entity = await this.repository.findOne({
+      where: { id },
+      relations: { notification: true, receiver: true }
+    });
+    if (!entity) {
+      throw new NotFoundException(`NotificationUser with ID ${id} not found`);
+    }
+    return entity;
+  }
+
+  async update(id: number, dto: UpdateNotificationUserDto) {
+    const entity = await this.findOne(id);
+    const { notificationId, receiverId, ...cleanDto } = dto;
+    this.repository.merge(entity, cleanDto as any);
+    if (dto.notificationId !== undefined) {
+      const notificationVal = await this.notificationRepository.findOne({ where: { id: dto.notificationId } });
+      if (!notificationVal) {
+        throw new NotFoundException(`Notification with ID ${dto.notificationId} not found`);
+      }
+      entity.notification = notificationVal;
+    }
+    if (dto.receiverId !== undefined) {
+      const receiverVal = await this.receiverRepository.findOne({ where: { id: dto.receiverId } });
+      if (!receiverVal) {
+        throw new NotFoundException(`User with ID ${dto.receiverId} not found`);
+      }
+      entity.receiver = receiverVal;
+    }
+    return this.repository.save(entity);
+  }
+
+  async remove(id: number) {
+    const entity = await this.findOne(id);
+    await this.repository.remove(entity);
+    return "Delete success";
+  }
+}

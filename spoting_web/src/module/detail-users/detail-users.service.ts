@@ -1,26 +1,53 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { CreateDetailUserDto } from './dto/create-detail-user.dto';
 import { UpdateDetailUserDto } from './dto/update-detail-user.dto';
+import { InjectRepository } from '@nestjs/typeorm';
+import { DetailUser } from './entities/detail-user.entity';
+import { Repository } from 'typeorm';
+import { User } from '../users/entities/user.entity';
 
 @Injectable()
 export class DetailUsersService {
-  create(createDetailUserDto: CreateDetailUserDto) {
-    return 'This action adds a new detailUser';
+  constructor(
+    @InjectRepository(DetailUser) private readonly detailUserRepository: Repository<DetailUser>,
+    @InjectRepository(User) private readonly userRepository: Repository<User>
+  ) { }
+  async create(createDetailUserDto: CreateDetailUserDto) {
+    const user = await this.userRepository.findOne({
+      where: { id: createDetailUserDto.userId },
+      relations: { detailUser: true },
+    });
+    if (!user) {
+      throw new NotFoundException(`User with ID ${createDetailUserDto.userId} not found`);
+    }
+    if (user.detailUser) {
+      throw new BadRequestException(`DetailUser for User ID ${createDetailUserDto.userId} already exists`);
+    }
+    const detailUser = this.detailUserRepository.create(createDetailUserDto);
+    return this.detailUserRepository.save(detailUser);
   }
 
-  findAll() {
-    return `This action returns all detailUsers`;
+  async findAll() {
+    return this.detailUserRepository.find();
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} detailUser`;
+  async findOne(id: number) {
+    return this.detailUserRepository.findOne({ where: { id } });
   }
 
-  update(id: number, updateDetailUserDto: UpdateDetailUserDto) {
-    return `This action updates a #${id} detailUser`;
+  async update(id: number, updateDetailUserDto: UpdateDetailUserDto) {
+    const detailUser = await this.findOne(id);
+    if (!detailUser) {
+      throw new NotFoundException(`DetailUser with ID ${id} not found`);
+    }
+    return this.detailUserRepository.update(id, updateDetailUserDto);
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} detailUser`;
+  async remove(id: number) {
+    const detailUser = await this.findOne(id);
+    if (!detailUser) {
+      throw new NotFoundException(`DetailUser with ID ${id} not found`);
+    }
+    return this.detailUserRepository.delete(id);
   }
 }

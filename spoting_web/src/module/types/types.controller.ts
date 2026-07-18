@@ -7,36 +7,39 @@ import {
   Param,
   Delete,
 } from '@nestjs/common';
-import { TypesService } from './types.service';
-import { CreateTypeDto } from './dto/create-type.dto';
-import { UpdateTypeDto } from './dto/update-type.dto';
+import { TypessService } from './types.service';
+import { CreateTypesDto } from './dto/create-type.dto';
+import { UpdateTypesDto } from './dto/update-type.dto';
 
 @Controller('types')
-export class TypesController {
-  constructor(private readonly typesService: TypesService) {}
+export class TypessController {
+  constructor(private readonly service: TypessService) {}
 
   @Post()
-  create(@Body() createTypeDto: CreateTypeDto) {
-    return this.typesService.create(createTypeDto);
+  create(@Body() createDto: CreateTypesDto) {
+    return this.service.create(createDto);
   }
 
   @Get()
   findAll() {
-    return this.typesService.findAll();
+    return this.service.findAll();
   }
 
   @Get(':id')
   findOne(@Param('id') id: string) {
-    return this.typesService.findOne(+id);
+    return this.service.findOne(+id);
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateTypeDto: UpdateTypeDto) {
-    return this.typesService.update(+id, updateTypeDto);
+  update(
+    @Param('id') id: string,
+    @Body() updateDto: UpdateTypesDto,
+  ) {
+    return this.service.update(+id, updateDto);
   }
 
   @Delete(':id')
   remove(@Param('id') id: string) {
-    return this.typesService.remove(+id);
+    return this.service.remove(+id);
   }
 }

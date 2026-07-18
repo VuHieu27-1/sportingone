@@ -1,26 +1,49 @@
-import { Injectable } from '@nestjs/common';
-import { CreateTypeDto } from './dto/create-type.dto';
-import { UpdateTypeDto } from './dto/update-type.dto';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository, DeepPartial } from 'typeorm';
+import { CreateTypesDto } from './dto/create-type.dto';
+import { UpdateTypesDto } from './dto/update-type.dto';
+import { Types } from './entities/type.entity';
 
 @Injectable()
-export class TypesService {
-  create(createTypeDto: CreateTypeDto) {
-    return 'This action adds a new type';
+export class TypessService {
+  constructor(
+    @InjectRepository(Types) private readonly repository: Repository<Types>
+  ) {}
+
+  async create(dto: CreateTypesDto) {
+    const entity = this.repository.create(dto as DeepPartial<Types>);
+    
+    return this.repository.save(entity);
   }
 
-  findAll() {
-    return `This action returns all types`;
+  async findAll() {
+    return this.repository.find({
+      
+    });
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} type`;
+  async findOne(id: number) {
+    const entity = await this.repository.findOne({
+      where: { id },
+      
+    });
+    if (!entity) {
+      throw new NotFoundException(`Types with ID ${id} not found`);
+    }
+    return entity;
   }
 
-  update(id: number, updateTypeDto: UpdateTypeDto) {
-    return `This action updates a #${id} type`;
+  async update(id: number, dto: UpdateTypesDto) {
+    const entity = await this.findOne(id);
+    this.repository.merge(entity, dto as any);
+    
+    return this.repository.save(entity);
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} type`;
+  async remove(id: number) {
+    const entity = await this.findOne(id);
+    await this.repository.remove(entity);
+    return "Delete success";
   }
 }
