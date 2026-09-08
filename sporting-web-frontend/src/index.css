@@ -1,0 +1,214 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400..800;1,400..800&family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Plus Jakarta Sans', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  --color-neutral-canvas: #F2F0EB;
+  --color-surface-card: #FBF8F0;
+  --color-evergreen-primary: #1E3932;
+  --color-sage-secondary: #6F7E72;
+  --color-starbucks-green: #006241;
+  --color-starbucks-hover: #004d33;
+}
+
+:root {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  color: #1E3932;
+  background-color: #F2F0EB;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: #F2F0EB;
+  color: #1E3932;
+  overflow-x: hidden;
+}
+
+.glass-surface {
+  background: rgba(251, 248, 240, 0.88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(111, 126, 114, 0.2);
+}
+
+.glass-surface-dark {
+  background: rgba(30, 57, 50, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(251, 248, 240, 0.15);
+}
+
+/* Custom sleek scrollbars for body and scrollable containers */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #F2F0EB;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #C2BBB0;
+  border-radius: 9999px;
+  border: 2px solid #F2F0EB;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #006241;
+}
+
+html, body {
+  scrollbar-width: thin;
+  scrollbar-color: #C2BBB0 #F2F0EB;
+}
+
+.no-scrollbar::-webkit-scrollbar,
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+  width: 0px;
+  height: 0px;
+}
+
+.no-scrollbar,
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+@keyframes pageFadeIn {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes tabFadeIn {
+  0% {
+    opacity: 0;
+    transform: translateY(6px) scale(0.995);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-page-transition {
+  animation: pageFadeIn 0.22s ease-out forwards;
+}
+
+.animate-tab-transition {
+  animation: tabFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: transform, opacity;
+}
+
+@keyframes successPop {
+  0% {
+    transform: scale(0.35);
+    opacity: 0;
+  }
+  65% {
+    transform: scale(1.12);
+    opacity: 1;
+  }
+  82% {
+    transform: scale(0.95);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes ripplePulse {
+  0% {
+    transform: scale(0.85);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(1.45);
+    opacity: 0.25;
+  }
+  100% {
+    transform: scale(1.95);
+    opacity: 0;
+  }
+}
+
+@keyframes checkmarkDraw {
+  0% {
+    stroke-dashoffset: 48;
+    opacity: 0;
+  }
+  40% {
+    opacity: 1;
+  }
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+}
+
+@keyframes shimmerGlow {
+  0%, 100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.08);
+  }
+}
+
+.animate-success-pop {
+  animation: successPop 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-ripple-1 {
+  animation: ripplePulse 2.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) infinite;
+}
+
+.animate-ripple-2 {
+  animation: ripplePulse 2.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) infinite 0.7s;
+}
+
+.animate-checkmark-draw {
+  stroke-dasharray: 48;
+  stroke-dashoffset: 48;
+  animation: checkmarkDraw 0.65s 0.2s cubic-bezier(0.65, 0, 0.45, 1) forwards;
+}
+
+.animate-shimmer-glow {
+  animation: shimmerGlow 3s ease-in-out infinite;
+}
+
+/* Touch scrolling enhancements */
+.overflow-x-auto,
+.overflow-y-auto {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Mobile safe area utilities */
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.pl-safe {
+  padding-left: env(safe-area-inset-left, 0px);
+}
+.pr-safe {
+  padding-right: env(safe-area-inset-right, 0px);
+}
+

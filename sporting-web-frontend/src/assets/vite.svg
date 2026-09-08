@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1E3932" />
+      <stop offset="100%" stop-color="#05251C" />
+    </linearGradient>
+    <linearGradient id="emeraldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4ADE80" />
+      <stop offset="100%" stop-color="#006241" />
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FCD34D" />
+      <stop offset="100%" stop-color="#D97706" />
+    </linearGradient>
+    <linearGradient id="cyanGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#34D399" />
+      <stop offset="100%" stop-color="#059669" />
+    </linearGradient>
+  </defs>
+
+  <!-- Circular Base Badge -->
+  <circle cx="256" cy="256" r="248" fill="url(#bgGrad)" stroke="url(#emeraldGrad)" stroke-width="16" />
+
+  <!-- Outer Energy Track Ring -->
+  <circle cx="256" cy="256" r="215" fill="none" stroke="url(#emeraldGrad)" stroke-width="20" stroke-linecap="round" stroke-dasharray="1000" stroke-dashoffset="140" opacity="0.85" />
+
+  <!-- Main Victory Trophy Cup Body -->
+  <path d="M 140 140 L 372 140 C 372 260 305 310 256 345 C 207 310 140 260 140 140 Z" fill="url(#emeraldGrad)" />
+
+  <!-- Left Trophy Wing Handle -->
+  <path d="M 140 160 C 70 160 60 260 150 275 C 115 250 115 200 140 185" fill="url(#goldGrad)" />
+
+  <!-- Right Trophy Wing Handle -->
+  <path d="M 372 160 C 442 160 452 260 362 275 C 397 250 397 200 372 185" fill="url(#goldGrad)" />
+
+  <!-- Golden Champion Star -->
+  <path d="M 256 80 L 270 114 L 306 116 L 278 140 L 287 176 L 256 155 L 225 176 L 234 140 L 206 116 L 242 114 Z" fill="url(#goldGrad)" />
+
+  <!-- Trophy Base Stand -->
+  <path d="M 224 340 L 288 340 L 300 405 L 212 405 Z" fill="url(#cyanGrad)" />
+  <rect x="170" y="405" width="172" height="38" rx="12" fill="url(#goldGrad)" />
+
+  <!-- Dynamic S Swoosh Accent -->
+  <path d="M 165 220 Q 256 170 347 220 Q 256 260 165 300 C 230 330 282 330 347 280" fill="none" stroke="url(#goldGrad)" stroke-width="18" stroke-linecap="round" />
+</svg>
