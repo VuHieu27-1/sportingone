@@ -13,12 +13,14 @@ import {
   Building2,
   Image as ImageIcon,
   ThumbsUp,
+  Clock,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { AuthUser } from '../../types/auth';
 import { rateService } from '../../services/rateService';
 import { RateItem } from '../../types/rate';
 import { formatDateVietnamese } from '../../utils/dateUtils';
+import { formatBookingPlayTime } from '../yard/YardReviewsTab';
 
 interface YardRatingModalProps {
   isOpen: boolean;
@@ -155,13 +157,18 @@ export const YardRatingModal: React.FC<YardRatingModalProps> = ({
       return;
     }
 
+    if (!comment.trim()) {
+      toast.error('Vui lòng nhập nội dung nhận xét trước khi gửi đánh giá!');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       if (myReview && isEditing) {
         // Update existing review
         const res = await rateService.updateRate(myReview.id, {
           rating,
-          comment: comment.trim() || undefined,
+          comment: comment.trim(),
           images: images.length > 0 ? images : undefined,
         });
 
@@ -179,7 +186,7 @@ export const YardRatingModal: React.FC<YardRatingModalProps> = ({
           yardId,
           userId: Number(currentUser.id),
           rating,
-          comment: comment.trim() || undefined,
+          comment: comment.trim(),
           bookingId: bookingId ? Number(bookingId) : undefined,
           images: images.length > 0 ? images : undefined,
         });
@@ -381,7 +388,7 @@ export const YardRatingModal: React.FC<YardRatingModalProps> = ({
                 </div>
                 <div className="flex items-center gap-3 flex-wrap">
                   <div
-                    className="flex items-center gap-1 bg-white px-2.5 py-1 rounded-xl border border-[#E6E2D8]"
+                    className="flex items-center gap-1 bg-white px-2.5 py-1 rounded-xl border border-[#E6E2D8] shrink-0"
                     onMouseLeave={() => setHoverRating(0)}
                   >
                     {[1, 2, 3, 4, 5].map((star) => (
@@ -390,7 +397,7 @@ export const YardRatingModal: React.FC<YardRatingModalProps> = ({
                         type="button"
                         onMouseEnter={() => setHoverRating(star)}
                         onClick={() => setRating(star)}
-                        className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-amber-50 transition-colors cursor-pointer focus:outline-none"
+                        className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-amber-50 transition-colors cursor-pointer focus:outline-none shrink-0"
                         aria-label={`${star} sao`}
                       >
                         <Star
@@ -402,7 +409,7 @@ export const YardRatingModal: React.FC<YardRatingModalProps> = ({
                       </button>
                     ))}
                   </div>
-                  <div className="px-3 py-1 rounded-full bg-[#006241] text-white text-xs font-bold font-mono tracking-tight shadow-xs min-w-[150px] text-center">
+                  <div className="w-[235px] h-[40px] shrink-0 px-3.5 rounded-full bg-[#006241] text-white text-xs font-bold font-mono tracking-tight shadow-xs text-center flex items-center justify-center whitespace-nowrap">
                     {STAR_LABELS[hoverRating || rating]}
                   </div>
                 </div>
@@ -610,6 +617,17 @@ export const YardRatingModal: React.FC<YardRatingModalProps> = ({
                     <p className="text-xs text-[#1E3932] leading-relaxed">
                       {rev.comment || 'Khách hàng không để lại nhận xét văn bản.'}
                     </p>
+
+                    {/* Booking Play Time */}
+                    {rev.booking?.startTime && (
+                      <div className="inline-flex items-center gap-1.5 text-[11px] text-[#1E3932] bg-[#FBF8F0] border border-[#E6E2D8] px-2.5 py-1 rounded-lg">
+                        <Clock className="w-3 h-3 text-[#006241] shrink-0" />
+                        <span className="font-bold">Đã chơi:</span>
+                        <span className="font-mono text-[#6F7E72]">
+                          {formatBookingPlayTime(rev.booking.startTime, rev.booking.endTime)}
+                        </span>
+                      </div>
+                    )}
 
                     {Array.isArray(rev.images) && rev.images.length > 0 && (
                       <div className="flex gap-2 pt-1 overflow-x-auto">

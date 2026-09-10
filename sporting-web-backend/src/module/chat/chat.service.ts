@@ -63,20 +63,24 @@ export class ChatService {
    * Gets list of conversations for authenticated user.
    */
   async getUserConversations(userId: number): Promise<Conversation[]> {
+    const limit = Number(process.env.CHAT_CONVERSATIONS_LIMIT) || 10;
     return this.convRepo.find({
       where: { userId },
       order: { updatedAt: 'DESC' },
-      take: 30,
+      take: limit,
     });
   }
 
   /**
-   * Gets message history for a specific conversation with strict user verification.
+   * Gets message history for a specific conversation with strict user verification
+   * and high-performance cursor-based pagination.
    */
   async getConversationMessages(
     userId: number | null,
     conversationId: number,
-  ): Promise<ChatMessage[]> {
+    limit?: number,
+    before?: number,
+  ): Promise<{ messages: ChatMessage[]; hasMore: boolean; nextCursor: number | null }> {
     const conv = await this.convRepo.findOne({ where: { id: conversationId } });
     if (!conv) {
       throw new NotFoundException(`Conversation ID ${conversationId} không tồn tại`);
@@ -92,11 +96,28 @@ export class ChatService {
       }
     }
 
-    return this.msgRepo.find({
-      where: { conversationId },
-      order: { createdAt: 'ASC' },
-      take: 100,
-    });
+    const effectiveLimit = limit || Number(process.env.CHAT_MESSAGES_LIMIT) || 10;
+
+    const query = this.msgRepo
+      .createQueryBuilder('msg')
+      .where('msg.conversationId = :conversationId', { conversationId });
+
+    if (before) {
+      query.andWhere('msg.id < :before', { before });
+    }
+    query.orderBy('msg.id', 'DESC').take(effectiveLimit + 1);
+
+    const rows = await query.getMany();
+    const hasMore = rows.length > effectiveLimit;
+    const items = hasMore ? rows.slice(0, effectiveLimit) : rows;
+    const messages = items.reverse();
+    const nextCursor = hasMore && messages.length > 0 ? messages[0].id : null;
+
+    return {
+      messages,
+      hasMore,
+      nextCursor,
+    };
   }
 
   /**

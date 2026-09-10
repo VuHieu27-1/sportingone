@@ -7,6 +7,7 @@ import {
   Param,
   Delete,
   ParseIntPipe,
+  Query,
   UseInterceptors,
   UploadedFiles,
 } from '@nestjs/common';
@@ -55,6 +56,14 @@ export class RatesController {
     @Body() body?: { action?: 'like' | 'unlike' | 'toggle' },
   ) {
     return this.ratesService.like(id, body?.action);
+  }
+
+  @Get('yard/:yardId/eligibility')
+  checkEligibility(
+    @Param('yardId', ParseIntPipe) yardId: number,
+    @Query('userId') userId?: string,
+  ) {
+    return this.ratesService.checkEligibility(yardId, Number(userId));
   }
 
   @Get('yard/:yardId')

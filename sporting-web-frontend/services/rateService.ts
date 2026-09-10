@@ -5,9 +5,17 @@ import {
   CreateRatePayload,
   ReplyRatePayload,
   UpdateRatePayload,
+  ReviewEligibilityResponse,
 } from '../types/rate';
 
 export const rateService = {
+  /**
+   * Check if a user is eligible to review a yard (has completed bookings).
+   */
+  async checkEligibility(yardId: number | string, userId: number | string): Promise<ApiResponse<ReviewEligibilityResponse>> {
+    return apiClient.get<ReviewEligibilityResponse>(`/rates/yard/${yardId}/eligibility?userId=${userId}`);
+  },
+
   /**
    * Fetch all reviews and statistics for a specific yard.
    */

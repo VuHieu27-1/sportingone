@@ -75,8 +75,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
 
   const renderContent = (isDrawer: boolean) => (
     <>
-      <div className="space-y-6 sm:space-y-8">
-        <div className="flex items-center justify-between">
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden space-y-4 sm:space-y-6">
+        <div className="flex items-center justify-between shrink-0">
           <div
             onClick={() => handleTabSelect('overview')}
             className="flex items-center gap-2.5 cursor-pointer group"
@@ -103,7 +103,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
           )}
         </div>
 
-        <nav className="space-y-2">
+        <nav className="space-y-2 flex-1 overflow-y-auto custom-scrollbar pr-1">
           <div className="text-[11px] font-extrabold text-[#6F7E72] uppercase tracking-wider px-3 mb-3">
             Hệ Thống Quản Lý
           </div>
@@ -232,24 +232,31 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
         </nav>
       </div>
 
-            <div className="pt-4 border-t border-[#E6E2D8] space-y-2 relative">
+      <div className="pt-4 border-t border-[#E6E2D8] space-y-2 relative shrink-0">
         <button
           onClick={() => setAccountMenuOpen(!accountMenuOpen)}
           className="w-full p-3 rounded-2xl bg-white hover:bg-[#F2F0EB] border border-[#E6E2D8] flex items-center justify-between gap-2 shadow-xs transition-all cursor-pointer text-left"
           title="Bấm để mở danh sách tài khoản"
         >
           <div className="flex items-center gap-2.5 min-w-0">
-            {adminAvatar ? (
+            {adminAvatar && (
               <img
                 src={adminAvatar}
                 alt={currentUser?.username || 'Admin'}
                 className="w-8 h-8 rounded-full object-cover shrink-0 shadow-xs border border-[#1E3932]/10"
+                onError={(e) => {
+                  (e.currentTarget as HTMLElement).style.display = 'none';
+                  const fb = e.currentTarget.nextElementSibling as HTMLElement;
+                  if (fb) fb.style.display = 'flex';
+                }}
               />
-            ) : (
-              <div className="w-8 h-8 rounded-full bg-[#006241] text-[#FBF8F0] font-extrabold text-xs flex items-center justify-center shrink-0 shadow-xs">
-                {(currentUser?.username || 'A').charAt(0).toUpperCase()}
-              </div>
             )}
+            <div
+              style={{ display: adminAvatar ? 'none' : 'flex' }}
+              className="w-8 h-8 rounded-full bg-[#006241] text-[#FBF8F0] font-extrabold text-xs items-center justify-center shrink-0 shadow-xs"
+            >
+              {(currentUser?.username || 'A').charAt(0).toUpperCase()}
+            </div>
             <div className="overflow-hidden">
               <h4 className="font-extrabold text-xs text-[#1E3932] truncate">{currentUser?.username || 'Admin'}</h4>
               <p className="text-[10px] font-bold text-[#006241]">Quản Trị Viên (SuperAdmin)</p>
@@ -355,7 +362,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   return (
     <>
       {/* Desktop Persistent Sidebar */}
-      <aside className="hidden lg:flex w-72 bg-[#FBF8F0] border-r border-[#E6E2D8] p-6 flex-col justify-between shrink-0 shadow-xs font-['Plus_Jakarta_Sans',sans-serif] min-h-screen">
+      <aside className="hidden lg:flex w-72 bg-[#FBF8F0] border-r border-[#E6E2D8] p-6 flex-col justify-between shrink-0 shadow-xs font-['Plus_Jakarta_Sans',sans-serif] h-screen sticky top-0 self-start overflow-hidden">
         {renderContent(false)}
       </aside>
 
@@ -366,7 +373,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
             className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
             onClick={onCloseMobile}
           />
-          <aside className="fixed inset-y-0 left-0 w-72 max-w-[85vw] bg-[#FBF8F0] p-5 flex flex-col justify-between overflow-y-auto z-10 shadow-2xl animate-in slide-in-from-left duration-200">
+          <aside className="fixed inset-y-0 left-0 w-72 max-w-[85vw] bg-[#FBF8F0] p-5 flex flex-col justify-between overflow-hidden z-10 shadow-2xl animate-in slide-in-from-left duration-200">
             {renderContent(true)}
           </aside>
         </div>

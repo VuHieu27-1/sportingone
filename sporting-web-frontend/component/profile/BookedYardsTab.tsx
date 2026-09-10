@@ -22,11 +22,196 @@ import { timeService } from '../../services/timeService';
 
 type FilterTabKey = 'ALL' | 'IN_PROGRESS' | 'UPCOMING' | 'COMPLETED';
 
-interface BookedYardsTabProps {
-  currentUser?: AuthUser | null;
+export interface BookedYardsCounts {
+  upcoming: number;
+  inProgress: number;
+  completed: number;
+  total: number;
 }
 
-export const BookedYardsTab: React.FC<BookedYardsTabProps> = ({ currentUser = null }) => {
+interface BookedYardsTabProps {
+  currentUser?: AuthUser | null;
+  onCountsChange?: (counts: BookedYardsCounts) => void;
+}
+
+export const calculateBookingStatus = (
+  booking: BackendBooking,
+  now: Date
+): BookingLiveStatus => {
+  if (booking.status !== 'paid') return null;
+  const currentMs = now.getTime();
+
+  const isMonthly = Boolean(booking.startDate || (booking as any).itemType === 'monthly');
+
+  if (isMonthly && booking.startDate && booking.endDate) {
+    const rawStartDay = String(booking.startDate).split('T')[0];
+    const rawEndDay = String(booking.endDate).split('T')[0];
+    const todayStr = timeService.getTodayDateStr();
+
+    // 1. Entire package is in the past after end date
+    if (todayStr > rawEndDay) {
+      return 'completed';
+    }
+
+    // 2. Entire package is in the future before start date
+    if (todayStr < rawStartDay) {
+      return 'upcoming';
+    }
+
+    // 3. Today is within the package date range [rawStartDay, rawEndDay]
+    const dailyStart = (booking as any).startTime || '08:00';
+    const dailyEnd = (booking as any).endTime || '10:00';
+
+    const [sH, sM] = dailyStart.split(':').map(Number);
+    const [eH, eM] = dailyEnd.split(':').map(Number);
+
+    const todayStartObj = new Date(now);
+    todayStartObj.setHours(sH, sM, 0, 0);
+
+    const todayEndObj = new Date(now);
+    todayEndObj.setHours(eH, eM, 0, 0);
+
+    const todayStartMs = todayStartObj.getTime();
+    const todayEndMs = todayEndObj.getTime();
+
+    // Currently playing in today's match hours
+    if (currentMs >= todayStartMs && currentMs <= todayEndMs) {
+      return 'in_progress';
+    }
+
+    // Today's match is upcoming later today (before start time)
+    if (currentMs < todayStartMs) {
+      return 'upcoming';
+    }
+
+    // Today's match has ended, but package still has upcoming days (todayStr < rawEndDay)
+    if (todayStr < rawEndDay) {
+      return 'upcoming';
+    }
+
+    // Today is the last day of the package and today's match has ended
+    return 'completed';
+  }
+
+  // Daily / Hourly booking
+  const startMs = new Date(booking.startTime).getTime();
+  const endMs = new Date(booking.endTime).getTime();
+
+  if (isNaN(startMs) || isNaN(endMs)) return null;
+
+  if (currentMs >= startMs && currentMs <= endMs) {
+    return 'in_progress';
+  }
+  if (currentMs < startMs) {
+    return 'upcoming';
+  }
+  return 'completed';
+};
+
+export function evaluateBookedYardsList(
+  rawBookings: BackendBooking[],
+  now: Date = new Date()
+): {
+  uniqueYards: UniqueBookedYardItem[];
+  upcomingCount: number;
+  inProgressCount: number;
+  completedCount: number;
+} {
+  if (!rawBookings || rawBookings.length === 0) {
+    return { uniqueYards: [], upcomingCount: 0, inProgressCount: 0, completedCount: 0 };
+  }
+
+  const yardMap = new Map<
+    number,
+    {
+      yard: BackendYardItem;
+      bookings: BackendBooking[];
+    }
+  >();
+
+  rawBookings.forEach((b) => {
+    if (b.yard && b.yard.id) {
+      const existing = yardMap.get(b.yard.id);
+      if (!existing) {
+        yardMap.set(b.yard.id, {
+          yard: b.yard as unknown as BackendYardItem,
+          bookings: [b],
+        });
+      } else {
+        existing.bookings.push(b);
+      }
+    }
+  });
+
+  const processedYards: UniqueBookedYardItem[] = Array.from(yardMap.values()).map(
+    ({ yard, bookings }) => {
+      const sortedBookings = [...bookings].sort(
+        (a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime()
+      );
+
+      const inProgressBooking = bookings.find(
+        (b) => calculateBookingStatus(b, now) === 'in_progress'
+      );
+
+      if (inProgressBooking) {
+        return {
+          yard,
+          bookingCount: bookings.length,
+          lastBooking: sortedBookings[0],
+          allBookings: bookings,
+          liveStatus: 'in_progress',
+          relevantBooking: inProgressBooking,
+        };
+      }
+
+      const upcomingBookings = bookings
+        .filter((b) => calculateBookingStatus(b, now) === 'upcoming')
+        .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+
+      if (upcomingBookings.length > 0) {
+        return {
+          yard,
+          bookingCount: bookings.length,
+          lastBooking: sortedBookings[0],
+          allBookings: bookings,
+          liveStatus: 'upcoming',
+          relevantBooking: upcomingBookings[0],
+        };
+      }
+
+      return {
+        yard,
+        bookingCount: bookings.length,
+        lastBooking: sortedBookings[0],
+        allBookings: bookings,
+        liveStatus: 'completed',
+        relevantBooking: sortedBookings[0] || null,
+      };
+    }
+  );
+
+  processedYards.sort((a, b) => {
+    if (a.liveStatus === 'in_progress' && b.liveStatus !== 'in_progress') return -1;
+    if (b.liveStatus === 'in_progress' && a.liveStatus !== 'in_progress') return 1;
+    if (a.liveStatus === 'upcoming' && b.liveStatus !== 'upcoming') return -1;
+    if (b.liveStatus === 'upcoming' && a.liveStatus !== 'upcoming') return 1;
+    return (
+      new Date(b.lastBooking?.startTime || 0).getTime() -
+      new Date(a.lastBooking?.startTime || 0).getTime()
+    );
+  });
+
+  const upcomingCount = processedYards.filter((y) => y.liveStatus === 'upcoming').length;
+  const inProgressCount = processedYards.filter((y) => y.liveStatus === 'in_progress').length;
+  const completedCount = processedYards.filter((y) => y.liveStatus === 'completed').length;
+
+  return { uniqueYards: processedYards, upcomingCount, inProgressCount, completedCount };
+}
+
+export const BookedYardsTab: React.FC<BookedYardsTabProps> = ({
+  currentUser = null,
+  onCountsChange,
+}) => {
   const navigate = useNavigate();
   const [rawBookings, setRawBookings] = useState<BackendBooking[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -46,84 +231,6 @@ export const BookedYardsTab: React.FC<BookedYardsTabProps> = ({ currentUser = nu
     }, 30000);
     return () => clearInterval(timer);
   }, []);
-
-  const calculateBookingStatus = (
-    booking: BackendBooking,
-    now: Date
-  ): BookingLiveStatus => {
-    if (booking.status !== 'paid') return null;
-    const currentMs = now.getTime();
-
-    const isMonthly = Boolean(booking.startDate || (booking as any).itemType === 'monthly');
-
-    if (isMonthly && booking.startDate && booking.endDate) {
-      const rawStartDay = String(booking.startDate).split('T')[0];
-      const rawEndDay = String(booking.endDate).split('T')[0];
-      const todayStr = timeService.getTodayDateStr();
-
-      // 1. Entire package is in the future before start date
-      if (todayStr < rawStartDay) {
-        const firstDayStartObj = new Date(`${rawStartDay}T${(booking as any).startTime || '08:00'}:00`);
-        const diffMs = firstDayStartObj.getTime() - currentMs;
-        if (diffMs > 0 && diffMs <= 24 * 60 * 60 * 1000) {
-          return 'upcoming';
-        }
-        return 'completed';
-      }
-
-      // 2. Entire package is in the past after end date
-      if (todayStr > rawEndDay) {
-        return 'completed';
-      }
-
-      // 3. Today is within the package date range [rawStartDay, rawEndDay]
-      const dailyStart = (booking as any).startTime || '08:00';
-      const dailyEnd = (booking as any).endTime || '10:00';
-
-      const [sH, sM] = dailyStart.split(':').map(Number);
-      const [eH, eM] = dailyEnd.split(':').map(Number);
-
-      const todayStartObj = new Date(now);
-      todayStartObj.setHours(sH, sM, 0, 0);
-
-      const todayEndObj = new Date(now);
-      todayEndObj.setHours(eH, eM, 0, 0);
-
-      const todayStartMs = todayStartObj.getTime();
-      const todayEndMs = todayEndObj.getTime();
-
-      // Currently playing in today's match hours
-      if (currentMs >= todayStartMs && currentMs <= todayEndMs) {
-        return 'in_progress';
-      }
-
-      // Today's match is upcoming later today (before start time)
-      if (currentMs < todayStartMs) {
-        return 'upcoming';
-      }
-
-      // Today's match has ended (e.g. afternoon after 10:00 AM)
-      return 'completed';
-    }
-
-    // Daily / Hourly booking
-    const startMs = new Date(booking.startTime).getTime();
-    const endMs = new Date(booking.endTime).getTime();
-
-    if (isNaN(startMs) || isNaN(endMs)) return null;
-
-    if (currentMs >= startMs && currentMs <= endMs) {
-      return 'in_progress';
-    }
-    if (currentMs < startMs) {
-      // Show upcoming if starting within the next 24 hours
-      if (startMs - currentMs <= 24 * 60 * 60 * 1000) {
-        return 'upcoming';
-      }
-      return 'completed';
-    }
-    return 'completed';
-  };
 
   const fetchBookedYards = useCallback(async (isSilent = false) => {
     if (!isSilent) setIsLoading(true);
@@ -154,97 +261,21 @@ export const BookedYardsTab: React.FC<BookedYardsTabProps> = ({ currentUser = nu
     fetchBookedYards(false);
   }, [fetchBookedYards]);
 
-  // Compute unique yards with evaluated live statuses without triggering full reload
-  const uniqueYards = useMemo<UniqueBookedYardItem[]>(() => {
-    if (!rawBookings || rawBookings.length === 0) return [];
-    const now = currentTime;
-    const yardMap = new Map<
-      number,
-      {
-        yard: BackendYardItem;
-        bookings: BackendBooking[];
-      }
-    >();
-
-    rawBookings.forEach((b) => {
-      if (b.yard && b.yard.id) {
-        const existing = yardMap.get(b.yard.id);
-        if (!existing) {
-          yardMap.set(b.yard.id, {
-            yard: b.yard as unknown as BackendYardItem,
-            bookings: [b],
-          });
-        } else {
-          existing.bookings.push(b);
-        }
-      }
-    });
-
-    const processedYards: UniqueBookedYardItem[] = Array.from(yardMap.values()).map(
-      ({ yard, bookings }) => {
-        // Sort bookings descending by createdAt / startTime for lastBooking
-        const sortedBookings = [...bookings].sort(
-          (a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime()
-        );
-
-        // 1. Priority 1: Any booking currently in progress?
-        const inProgressBooking = bookings.find(
-          (b) => calculateBookingStatus(b, now) === 'in_progress'
-        );
-
-        if (inProgressBooking) {
-          return {
-            yard,
-            bookingCount: bookings.length,
-            lastBooking: sortedBookings[0],
-            allBookings: bookings,
-            liveStatus: 'in_progress',
-            relevantBooking: inProgressBooking,
-          };
-        }
-
-        // 2. Priority 2: Any upcoming booking? (Pick the earliest upcoming)
-        const upcomingBookings = bookings
-          .filter((b) => calculateBookingStatus(b, now) === 'upcoming')
-          .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-
-        if (upcomingBookings.length > 0) {
-          return {
-            yard,
-            bookingCount: bookings.length,
-            lastBooking: sortedBookings[0],
-            allBookings: bookings,
-            liveStatus: 'upcoming',
-            relevantBooking: upcomingBookings[0],
-          };
-        }
-
-        // 3. Completed / No active temp
-        return {
-          yard,
-          bookingCount: bookings.length,
-          lastBooking: sortedBookings[0],
-          allBookings: bookings,
-          liveStatus: 'completed',
-          relevantBooking: sortedBookings[0] || null,
-        };
-      }
-    );
-
-    // Sort unique yards: in_progress first, then upcoming, then recently booked
-    processedYards.sort((a, b) => {
-      if (a.liveStatus === 'in_progress' && b.liveStatus !== 'in_progress') return -1;
-      if (b.liveStatus === 'in_progress' && a.liveStatus !== 'in_progress') return 1;
-      if (a.liveStatus === 'upcoming' && b.liveStatus !== 'upcoming') return -1;
-      if (b.liveStatus === 'upcoming' && a.liveStatus !== 'upcoming') return 1;
-      return (
-        new Date(b.lastBooking?.startTime || 0).getTime() -
-        new Date(a.lastBooking?.startTime || 0).getTime()
-      );
-    });
-
-    return processedYards;
+  // Compute unique yards with evaluated live statuses
+  const { uniqueYards, upcomingCount, inProgressCount, completedCount } = useMemo(() => {
+    return evaluateBookedYardsList(rawBookings, currentTime);
   }, [rawBookings, currentTime]);
+
+  useEffect(() => {
+    if (onCountsChange) {
+      onCountsChange({
+        upcoming: upcomingCount,
+        inProgress: inProgressCount,
+        completed: completedCount,
+        total: uniqueYards.length,
+      });
+    }
+  }, [upcomingCount, inProgressCount, completedCount, uniqueYards.length, onCountsChange]);
 
   const handleRebookClick = (yard: BackendYardItem) => {
     if ((yard as any)?.ondeleted) {
@@ -257,11 +288,6 @@ export const BookedYardsTab: React.FC<BookedYardsTabProps> = ({ currentUser = nu
   const handleViewQr = (booking: BackendBooking) => {
     setSelectedBookingForQr(booking);
   };
-
-  // Filter yards according to tab
-  const inProgressCount = uniqueYards.filter((y) => y.liveStatus === 'in_progress').length;
-  const upcomingCount = uniqueYards.filter((y) => y.liveStatus === 'upcoming').length;
-  const completedCount = uniqueYards.filter((y) => y.liveStatus === 'completed').length;
 
   const filteredYards = uniqueYards.filter((yardItem) => {
     if (filterTab === 'IN_PROGRESS') return yardItem.liveStatus === 'in_progress';

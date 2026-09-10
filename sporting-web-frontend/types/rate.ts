@@ -72,3 +72,18 @@ export interface UpdateRatePayload {
   comment?: string;
   images?: string[];
 }
+
+export interface EligibleBookingItem {
+  id: number;
+  startTime: string;
+  endTime: string;
+  priced?: number | null;
+}
+
+export interface ReviewEligibilityResponse {
+  canReview: boolean;
+  reason: 'NO_BOOKING' | 'UPCOMING_ONLY' | 'ALL_REVIEWED' | null;
+  message: string;
+  eligibleBookings: EligibleBookingItem[];
+  upcomingBookings: EligibleBookingItem[];
+}

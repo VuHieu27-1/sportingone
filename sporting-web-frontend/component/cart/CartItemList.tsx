@@ -107,17 +107,20 @@ export const CartItemList: React.FC<CartItemListProps> = ({
           {filteredBookings.length > 0 && (
             <button
               onClick={onToggleSelectAll}
-              className="flex items-center gap-2 text-xs font-bold text-[#006241] hover:text-[#1E3932] transition-colors cursor-pointer bg-[#006241]/10 hover:bg-[#006241]/15 px-3.5 py-1.5 rounded-full border border-[#006241]/20"
+              className="flex items-center gap-1.5 sm:gap-2 text-xs font-bold text-[#006241] hover:text-[#1E3932] transition-colors cursor-pointer bg-[#006241]/10 hover:bg-[#006241]/15 px-3 sm:px-3.5 py-1.5 rounded-full border border-[#006241]/20 shrink-0"
             >
               {isAllFilteredSelected ? (
-                <CheckSquare className="w-4 h-4 text-[#006241]" />
+                <CheckSquare className="w-4 h-4 text-[#006241] shrink-0" />
               ) : (
-                <Square className="w-4 h-4 text-[#6F7E72]" />
+                <Square className="w-4 h-4 text-[#6F7E72] shrink-0" />
               )}
-              <span>
+              <span className="hidden sm:inline">
                 {activeStatusTab === 'unpaid'
                   ? `Chọn tất cả sân chờ thanh toán (${filteredBookings.length})`
                   : `Chọn tất cả (${filteredBookings.length})`}
+              </span>
+              <span className="sm:hidden">
+                Chọn tất cả ({filteredBookings.length})
               </span>
             </button>
           )}
@@ -126,11 +129,12 @@ export const CartItemList: React.FC<CartItemListProps> = ({
             <button
               onClick={onBatchDelete}
               disabled={isProcessing}
-              className="flex items-center gap-1.5 text-xs font-extrabold text-white bg-rose-600 hover:bg-rose-700 transition-all cursor-pointer px-4 py-1.5 rounded-full shadow-md hover:shadow-lg active:scale-95 border border-rose-600"
+              className="flex items-center gap-1.5 text-xs font-extrabold text-white bg-rose-600 hover:bg-rose-700 transition-all cursor-pointer px-3 sm:px-4 py-1.5 rounded-full shadow-md hover:shadow-lg active:scale-95 border border-rose-600 shrink-0"
               title="Xóa mềm các đơn đã chọn"
             >
-              <Trash2 className="w-3.5 h-3.5" />
-              <span>Xóa các đơn đã chọn ({selectedCountInTab})</span>
+              <Trash2 className="w-3.5 h-3.5 shrink-0" />
+              <span className="hidden sm:inline">Xóa các đơn đã chọn ({selectedCountInTab})</span>
+              <span className="sm:hidden">Xóa ({selectedCountInTab})</span>
             </button>
           )}
         </div>

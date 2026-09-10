@@ -328,7 +328,7 @@ export const VendorDashboardPage: React.FC<VendorDashboardPageProps> = ({
         rel="stylesheet"
       />
 
-      <div className="min-h-screen bg-[#F2F0EB] text-[#1E3932] font-['Plus_Jakarta_Sans',sans-serif] flex flex-col lg:flex-row">
+      <div className="min-h-screen lg:h-screen lg:overflow-hidden bg-[#F2F0EB] text-[#1E3932] font-['Plus_Jakarta_Sans',sans-serif] flex flex-col lg:flex-row">
         <VendorSidebar
           currentUser={currentUser}
           activeTab={activeTab}
@@ -342,7 +342,7 @@ export const VendorDashboardPage: React.FC<VendorDashboardPageProps> = ({
           onCloseMobile={() => setIsMobileSidebarOpen(false)}
         />
 
-        <main className="flex-1 flex flex-col min-w-0 min-h-screen">
+        <main className="flex-1 flex flex-col min-w-0 lg:h-full lg:overflow-y-auto">
           <header className="bg-white border-b border-[#E6E2D8] px-4 sm:px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 sticky top-0 z-30 shadow-sm">
             <div className="flex items-center gap-3">
               <button
@@ -470,9 +470,20 @@ export const VendorDashboardPage: React.FC<VendorDashboardPageProps> = ({
                 {vendorSubTab === 'list' ? (
                   <SubVendorList
                     vendors={vendors}
-                    vendorRevenues={{}}
+                    vendorRevenues={vendorRevenues}
                     selectedVendor={selectedVendor}
-                    onSelectVendor={setSelectedVendor}
+                    onSelectVendor={(vendor) => {
+                      setSelectedVendor(vendor);
+                      setActiveTab('yards');
+                    }}
+                    onManageYards={(vendor) => {
+                      setSelectedVendor(vendor);
+                      setActiveTab('yards');
+                    }}
+                    onDesignVendor={(vendor) => {
+                      setSelectedVendor(vendor);
+                      setVendorSubTab('design');
+                    }}
                     onAddVendor={() => {
                       setEditingSubVendor(null);
                       setIsSubVendorModalOpen(true);

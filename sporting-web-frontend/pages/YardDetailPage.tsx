@@ -5,6 +5,7 @@ import { AuthUser } from '../types/auth';
 import { vendorService, BackendYardItem, BackendVendor } from '../services/vendorService';
 import { bookingService, BackendBooking } from '../services/bookingService';
 import { rateService } from '../services/rateService';
+import { timeService } from '../services/timeService';
 import { RatingStats } from '../types/rate';
 import { DashboardNavbar } from '../component/user/DashboardNavbar';
 import { DashboardFooter } from '../component/user/DashboardFooter';
@@ -214,17 +215,24 @@ export const YardDetailPage: React.FC<YardDetailPageProps> = ({
 
     if (!groups || groups.length === 0 || !yard) return;
 
+    // Safety guard: check if any group start time has already passed
+    const nowMs = timeService.getNowMs();
+    const hasExpiredGroup = groups.some((group) => {
+      const startMs = new Date(`${group.date}T${group.startTime}:00+07:00`).getTime();
+      return startMs <= nowMs;
+    });
+
+    if (hasExpiredGroup) {
+      toast.error('Có khung giờ đã quá thời gian hiện tại và không thể đặt. Vui lòng chọn lại khung giờ!');
+      return;
+    }
+
     const loadingToast = toast.loading(`Đang tạo ${groups.length} đơn đặt sân...`);
     try {
       const createdBookings = [];
       for (const group of groups) {
-        const [sH, sM] = group.startTime.split(':').map(Number);
-        const startObj = new Date(group.date);
-        startObj.setHours(sH, sM, 0, 0);
-
-        const [eH, eM] = group.endTime.split(':').map(Number);
-        const endObj = new Date(group.date);
-        endObj.setHours(eH, eM, 0, 0);
+        const startObj = new Date(`${group.date}T${group.startTime}:00+07:00`);
+        const endObj = new Date(`${group.date}T${group.endTime}:00+07:00`);
 
         const res = await bookingService.createBooking({
           yardId: Number(yard.id),
@@ -264,6 +272,13 @@ export const YardDetailPage: React.FC<YardDetailPageProps> = ({
     if (isGuest) {
       toast.error('Vui lòng đăng nhập để thực hiện đặt lịch sân!');
       navigate('/login');
+      return;
+    }
+
+    const nowMs = timeService.getNowMs();
+    const startMs = new Date(`${selectedDate}T${startTime}:00+07:00`).getTime();
+    if (startMs <= nowMs) {
+      toast.error('Khung giờ này đã quá thời gian hiện tại và không thể đặt!');
       return;
     }
 

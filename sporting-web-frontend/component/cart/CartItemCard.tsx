@@ -274,14 +274,14 @@ export const CartItemCard: React.FC<CartItemCardProps> = ({
               <span className="line-clamp-1 font-medium">{vendorAddress}</span>
             </div>
 
-            <div className="inline-flex flex-wrap items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#F2F0EB] border border-[#E6E2D8] text-xs text-[#1E3932] font-semibold">
+            <div className="inline-flex flex-wrap items-center gap-2 px-3.5 py-1.5 rounded-2xl sm:rounded-full bg-[#F2F0EB] border border-[#E6E2D8] text-xs text-[#1E3932] font-semibold max-w-full">
               <Clock className="w-3.5 h-3.5 text-[#006241] shrink-0" />
-              <span className="font-mono">
+              <span className="font-mono break-all sm:break-normal">
                 {isMonthlyBooking
                   ? `${startTimeStr} - ${endTimeStr} hàng ngày (${startDateStr} đến ${endDateStr})`
                   : `${startTimeStr} - ${endTimeStr} (${dateStr})`}
               </span>
-              <span className="px-2.5 py-0.5 rounded-full bg-white border border-[#E6E2D8] text-[11px] font-medium text-[#6F7E72]">
+              <span className="px-2.5 py-0.5 rounded-full bg-white border border-[#E6E2D8] text-[11px] font-medium text-[#6F7E72] shrink-0">
                 {isMonthlyBooking ? `${monthlyPackageLabel} (${typeName})` : `${durationHours} giờ (${typeName})`}
               </span>
             </div>
@@ -308,7 +308,7 @@ export const CartItemCard: React.FC<CartItemCardProps> = ({
                   <button
                     onClick={() => onCancelSingle(booking.id)}
                     disabled={isProcessing}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#FBF8F0] hover:bg-rose-50 border border-[#E6E2D8] hover:border-rose-300 text-[#6F7E72] hover:text-rose-700 text-xs font-extrabold uppercase tracking-wider transition-all cursor-pointer shadow-2xs"
+                    className="flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-full bg-[#FBF8F0] hover:bg-rose-50 border border-[#E6E2D8] hover:border-rose-300 text-[#6F7E72] hover:text-rose-700 text-xs font-extrabold uppercase tracking-wider transition-all cursor-pointer shadow-2xs shrink-0"
                     title="Hủy đơn đặt sân này"
                   >
                     <XCircle className="w-3.5 h-3.5" />
@@ -318,10 +318,11 @@ export const CartItemCard: React.FC<CartItemCardProps> = ({
                   <button
                     onClick={() => onPaySingle(booking.id)}
                     disabled={isProcessing}
-                    className="flex items-center gap-1.5 px-5 py-2.5 rounded-full bg-[#006241] hover:bg-[#1E3932] text-white text-xs font-extrabold uppercase tracking-wider transition-all cursor-pointer shadow-md hover:shadow-lg active:scale-95"
+                    className="flex items-center gap-1.5 px-4 sm:px-5 py-2.5 rounded-full bg-[#006241] hover:bg-[#1E3932] text-white text-xs font-extrabold uppercase tracking-wider transition-all cursor-pointer shadow-md hover:shadow-lg active:scale-95 shrink-0"
                   >
                     <CreditCard className="w-3.5 h-3.5" />
-                    <span>Thanh Toán Sân Này</span>
+                    <span className="hidden sm:inline">Thanh Toán Sân Này</span>
+                    <span className="sm:hidden">Thanh Toán</span>
                   </button>
                 </>
               )}
@@ -331,11 +332,12 @@ export const CartItemCard: React.FC<CartItemCardProps> = ({
                   <button
                     type="button"
                     onClick={() => onViewQr && onViewQr(booking)}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#006241] hover:bg-[#1E3932] text-white text-xs font-extrabold transition-all cursor-pointer shadow-md hover:shadow-lg active:scale-95 border border-[#006241]"
+                    className="flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-full bg-[#006241] hover:bg-[#1E3932] text-white text-xs font-extrabold transition-all cursor-pointer shadow-md hover:shadow-lg active:scale-95 border border-[#006241] shrink-0"
                     title="Xem mã QR và chi tiết sân thi đấu"
                   >
                     <QrCode className="w-4 h-4 text-emerald-300 shrink-0" />
-                    <span>Xem thông tin đặt sân</span>
+                    <span className="hidden sm:inline">Xem thông tin đặt sân</span>
+                    <span className="sm:hidden">Xem vé QR</span>
                   </button>
 
                   {/* Review / Rate Yard Button */}

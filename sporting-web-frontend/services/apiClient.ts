@@ -67,119 +67,144 @@ async function attemptRefreshToken(): Promise<string | null> {
   return null;
 }
 
+// Map to deduplicate concurrent identical GET requests across the app
+const inFlightGetRequests = new Map<string, Promise<ApiResponse<any>>>();
+
 async function makeRequest<T>(
   endpoint: string,
   options: RequestInit = {},
   isRetry = false
 ): Promise<ApiResponse<T>> {
-  try {
-    const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
-    const headers: Record<string, string> = {};
-    if (!isFormData) {
-      headers['Content-Type'] = 'application/json';
-    }
-    const token = tokenManager.getActiveToken();
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
+  const method = (options.method || 'GET').toUpperCase();
+  const isGet = method === 'GET';
+  const token = tokenManager.getActiveToken() || 'anon';
+  const dedupeKey = isGet && !isRetry ? `${token}:${endpoint}` : null;
 
-    // Standard 30s client timeout controller
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000);
-    
-    // Combine with options.signal if caller provided one
-    if (options.signal) {
-      options.signal.addEventListener('abort', () => controller.abort());
-    }
+  if (dedupeKey && inFlightGetRequests.has(dedupeKey)) {
+    return inFlightGetRequests.get(dedupeKey)! as Promise<ApiResponse<T>>;
+  }
 
-    let response: Response;
+  const execute = async (): Promise<ApiResponse<T>> => {
     try {
-      response = await fetch(`${API_BASE_URL}${endpoint}`, {
-        ...options,
-        signal: controller.signal,
-        headers: {
-          ...headers,
-          ...(options.headers as Record<string, string>),
-        },
-      });
-    } finally {
-      clearTimeout(timeoutId);
-    }
-
-    const data = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
-      if (response.status === 401 && !isAuthEndpoint(endpoint) && !isRetry) {
-        if (!isRefreshing) {
-          isRefreshing = true;
-          const newToken = await attemptRefreshToken();
-          isRefreshing = false;
-          onRefreshed(newToken);
-
-          if (newToken) {
-            return makeRequest<T>(endpoint, options, true);
-          } else {
-            clearAuthToken();
-            return {
-              success: false,
-              message: 'Session expired (refresh token invalid or expired). Please log in again.',
-              statusCode: 401,
-            };
-          }
-        } else {
-          return new Promise((resolve) => {
-            subscribeTokenRefresh((newToken) => {
-              if (newToken) {
-                resolve(makeRequest<T>(endpoint, options, true));
-              } else {
-                clearAuthToken();
-                resolve({
-                  success: false,
-                  message: 'Session expired. Please log in again.',
-                  statusCode: 401,
-                });
-              }
-            });
-          });
-        }
+      const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
+      const headers: Record<string, string> = {};
+      if (!isFormData) {
+        headers['Content-Type'] = 'application/json';
+      }
+      const activeToken = tokenManager.getActiveToken();
+      if (activeToken) {
+        headers['Authorization'] = `Bearer ${activeToken}`;
       }
 
-      let errorMsg = Array.isArray(data.message)
-        ? data.message.join(', ')
-        : data.message;
+      // Standard 30s client timeout controller
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
+      
+      // Combine with options.signal if caller provided one
+      if (options.signal) {
+        options.signal.addEventListener('abort', () => controller.abort());
+      }
 
-      if (response.status === 401) {
-        if (isAuthEndpoint(endpoint)) {
-          errorMsg = errorMsg && errorMsg !== 'Unauthorized'
-            ? errorMsg
-            : 'Incorrect username or password!';
-        } else {
-          errorMsg = 'Session expired. Please log in again.';
+      let response: Response;
+      try {
+        response = await fetch(`${API_BASE_URL}${endpoint}`, {
+          ...options,
+          signal: controller.signal,
+          headers: {
+            ...headers,
+            ...(options.headers as Record<string, string>),
+          },
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        if (response.status === 401 && !isAuthEndpoint(endpoint) && !isRetry) {
+          if (!isRefreshing) {
+            isRefreshing = true;
+            const newToken = await attemptRefreshToken();
+            isRefreshing = false;
+            onRefreshed(newToken);
+
+            if (newToken) {
+              return makeRequest<T>(endpoint, options, true);
+            } else {
+              clearAuthToken();
+              return {
+                success: false,
+                message: 'Session expired (refresh token invalid or expired). Please log in again.',
+                statusCode: 401,
+              };
+            }
+          } else {
+            return new Promise((resolve) => {
+              subscribeTokenRefresh((newToken: string | null) => {
+                if (newToken) {
+                  resolve(makeRequest<T>(endpoint, options, true));
+                } else {
+                  clearAuthToken();
+                  resolve({
+                    success: false,
+                    message: 'Session expired. Please log in again.',
+                    statusCode: 401,
+                  });
+                }
+              });
+            });
+          }
         }
-      } else {
-        errorMsg = errorMsg || 'Request failed from backend server.';
+
+        let errorMsg = Array.isArray(data.message)
+          ? data.message.join(', ')
+          : data.message;
+
+        if (response.status === 401) {
+          if (isAuthEndpoint(endpoint)) {
+            errorMsg = errorMsg && errorMsg !== 'Unauthorized'
+              ? errorMsg
+              : 'Incorrect username or password!';
+          } else {
+            errorMsg = 'Session expired. Please log in again.';
+          }
+        } else {
+          errorMsg = errorMsg || 'Request failed from backend server.';
+        }
+
+        return {
+          success: false,
+          message: errorMsg,
+          statusCode: response.status,
+        };
       }
 
       return {
-        success: false,
-        message: errorMsg,
+        success: true,
+        message: data.message || 'Success',
+        data: data.data !== undefined ? data.data : data,
+        access_token: data.access_token,
         statusCode: response.status,
       };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message || 'Unable to connect to Backend API server.',
+      };
     }
+  };
 
-    return {
-      success: true,
-      message: data.message || 'Success',
-      data: data.data !== undefined ? data.data : data,
-      access_token: data.access_token,
-      statusCode: response.status,
-    };
-  } catch (error: any) {
-    return {
-      success: false,
-      message: error.message || 'Unable to connect to Backend API server (http://localhost:3000/api/v1).',
-    };
+  const reqPromise = execute();
+
+  if (dedupeKey) {
+    inFlightGetRequests.set(dedupeKey, reqPromise);
+    reqPromise.finally(() => {
+      inFlightGetRequests.delete(dedupeKey);
+    });
   }
+
+  return reqPromise;
 }
 
 export const apiClient = {

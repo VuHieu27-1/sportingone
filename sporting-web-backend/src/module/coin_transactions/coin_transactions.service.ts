@@ -44,9 +44,17 @@ export class CoinTransactionsService {
   async createDeposit(userId: number, dto: CreateCoinDepositDto) {
     const user = await this.userRepository.findOne({
       where: { id: userId },
+      relations: { wallet: true },
     });
     if (!user) {
       throw new NotFoundException(`User with ID ${userId} not found`);
+    }
+
+    const wallet = user.wallet;
+    if (!wallet || !wallet.bankName || !wallet.bankNumber) {
+      throw new BadRequestException(
+        'Bạn cần liên kết tài khoản ngân hàng trước khi nạp xu. Vui lòng cập nhật thông tin ngân hàng trong ví của bạn.',
+      );
     }
 
     if (!dto.amount || dto.amount < 10000) {
@@ -75,7 +83,7 @@ export class CoinTransactionsService {
       type: CoinTransactionType.DEPOSIT,
       amount: dto.amount,
       transactionCode: String(orderCode),
-      description: `Nạp ${dto.amount.toLocaleString('vi-VN')} Xu qua VietQR PayOS`,
+      description: `Nạp ${dto.amount.toLocaleString('vi-VN')} Xu qua VietQR`,
       status: CoinTransactionStatus.PENDING,
       balanceAfter: null,
     });
@@ -104,7 +112,7 @@ export class CoinTransactionsService {
 
       return {
         success: true,
-        message: 'Khởi tạo đơn nạp xu PayOS thành công',
+        message: 'Khởi tạo đơn nạp xu thành công',
         data: {
           orderCode,
           checkoutUrl: payosResponse.checkoutUrl,
@@ -121,7 +129,7 @@ export class CoinTransactionsService {
       coinTransaction.status = CoinTransactionStatus.CANCELLED;
       await this.coinTransactionRepository.save(coinTransaction);
       throw new BadRequestException(
-        error?.message || 'Unable to initialize PayOS payment link',
+        error?.message || 'Unable to initialize payment link',
       );
     }
   }

@@ -8,6 +8,7 @@ export const APP_CONFIG = {
   SUPPORT_PHONE_DISPLAY: import.meta.env.VITE_SUPPORT_PHONE_DISPLAY || '+84 93 497 5292',
   SUPPORT_ADDRESS: import.meta.env.VITE_SUPPORT_ADDRESS || 'K596 Hoàng Diệu, Đà Nẵng',
   API_BASE_URL: import.meta.env.VITE_API_BASE_URL || 'https://api.sportingone.site/api/v1',
+  CHAT_MESSAGES_LIMIT: Number(import.meta.env.VITE_CHAT_MESSAGES_LIMIT) || 10,
 } as const;
 
 export const {
@@ -16,4 +17,5 @@ export const {
   SUPPORT_PHONE_DISPLAY,
   SUPPORT_ADDRESS,
   API_BASE_URL,
+  CHAT_MESSAGES_LIMIT,
 } = APP_CONFIG;

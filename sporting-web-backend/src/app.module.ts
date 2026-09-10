@@ -44,6 +44,7 @@ import { GoogleDriveModule } from './common/google-drive/google-drive.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { AiApiKeysModule } from './module/ai-api-keys/ai-api-keys.module';
+import { BackupRestoreModule } from './module/backup-restore/backup-restore.module';
 
 @Module({
   imports: [
@@ -108,6 +109,7 @@ import { AiApiKeysModule } from './module/ai-api-keys/ai-api-keys.module';
     ChatModule,
     RatesModule,
     AiApiKeysModule,
+    BackupRestoreModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -31,6 +31,7 @@ import { notificationService, UserNotificationItem } from '../../services/notifi
 import { tokenManager } from '../../utils/tokenManager';
 import { useAccounts } from '../../hooks/useAccounts';
 import { bookingService } from '../../services/bookingService';
+import { evaluateBookedYardsList } from '../profile/BookedYardsTab';
 import { SportLogoIcon } from '../common/SportLogoIcon';
 
 interface DashboardNavbarProps {
@@ -58,6 +59,7 @@ export const DashboardNavbar: React.FC<DashboardNavbarProps> = ({
   const [profile, setProfile] = useState<UserProfileDetails | null>(null);
   const [walletBalance, setWalletBalance] = useState<number>(0);
   const [isLoadingWallet, setIsLoadingWallet] = useState<boolean>(false);
+  const [avatarError, setAvatarError] = useState<boolean>(false);
   const searchRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
@@ -137,27 +139,17 @@ export const DashboardNavbar: React.FC<DashboardNavbarProps> = ({
         bookingService.fetchMyBookingsMonth(),
       ]);
 
-      const now = new Date().getTime();
-      let dailyCount = 0;
-      let monthlyCount = 0;
+      const dailyList = (resDaily.success && Array.isArray(resDaily.data) ? resDaily.data : []).map((b) => ({
+        ...b,
+        itemType: 'hourly',
+      }));
+      const monthlyList = (resMonthly.success && Array.isArray(resMonthly.data) ? resMonthly.data : []).map((bm) => ({
+        ...bm,
+        itemType: 'monthly',
+      }));
 
-      if (resDaily.success && Array.isArray(resDaily.data)) {
-        dailyCount = resDaily.data.filter((b) => {
-          if (b.status !== 'paid') return false;
-          const start = new Date(b.startTime).getTime();
-          return !isNaN(start) && start > now;
-        }).length;
-      }
-
-      if (resMonthly.success && Array.isArray(resMonthly.data)) {
-        monthlyCount = resMonthly.data.filter((bm) => {
-          if (bm.status !== 'paid') return false;
-          const end = new Date(bm.endDate ? `${String(bm.endDate).split('T')[0]}T${bm.endTime || '23:59'}:00` : bm.createdAt).getTime();
-          return !isNaN(end) && end > now;
-        }).length;
-      }
-
-      setUpcomingBookingsCount(dailyCount + monthlyCount);
+      const { upcomingCount } = evaluateBookedYardsList([...dailyList, ...monthlyList] as any, new Date());
+      setUpcomingBookingsCount(upcomingCount);
     } catch {}
   }, []);
 
@@ -233,6 +225,10 @@ export const DashboardNavbar: React.FC<DashboardNavbarProps> = ({
     currentUser?.avatarUrl ||
     accountAvatarCache.getAvatar(currentUser?.username || '') ||
     accountAvatarCache.getAvatar(displayName);
+
+  useEffect(() => {
+    setAvatarError(false);
+  }, [avatarUrl]);
 
   useEffect(() => {
     if (searchOpen) {
@@ -611,8 +607,13 @@ export const DashboardNavbar: React.FC<DashboardNavbarProps> = ({
                   }}
                   className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 transition-all cursor-pointer"
                 >
-                  {avatarUrl ? (
-                    <img src={avatarUrl} alt={displayName} className="w-6 h-6 rounded-full object-cover shadow" />
+                  {avatarUrl && !avatarError ? (
+                    <img
+                      src={avatarUrl}
+                      alt={displayName}
+                      className="w-6 h-6 rounded-full object-cover shadow"
+                      onError={() => setAvatarError(true)}
+                    />
                   ) : (
                     <div className="w-6 h-6 rounded-full bg-[#006241] flex items-center justify-center font-extrabold text-[#FBF8F0] text-xs shadow">
                       {avatarLetter}
@@ -650,9 +651,9 @@ export const DashboardNavbar: React.FC<DashboardNavbarProps> = ({
                           <Wallet className="w-4 h-4 text-[#006241] shrink-0" />
                           <span className="truncate">Ví Xu Số Dư</span>
                         </div>
-                        <div className="flex items-center gap-1 shrink-0 max-w-[120px] bg-[#006241]/10 px-2.5 py-0.5 rounded-full border border-[#006241]/20 text-[#006241]">
+                        <div className="flex items-center gap-1 shrink-0 bg-[#006241]/10 px-2.5 py-0.5 rounded-full border border-[#006241]/20 text-[#006241]">
                           <Coins className="w-3 h-3 text-[#006241] shrink-0" />
-                          <span className="text-[11px] font-extrabold font-mono truncate">
+                          <span className="text-[11px] font-extrabold font-mono whitespace-nowrap">
                             {isLoadingWallet ? '...' : `${walletBalance.toLocaleString('vi-VN')} Xu`}
                           </span>
                         </div>
@@ -824,8 +825,9 @@ export const DashboardNavbar: React.FC<DashboardNavbarProps> = ({
       </div>
 
       {mobileMenuOpen && (
-        <div className="md:hidden border-t border-white/10 bg-[#1E3932] px-4 py-4 space-y-2">
-          <div className="flex items-center gap-2 px-3.5 py-2.5 bg-white/10 border border-white/15 rounded-full mb-3">
+        <div className="md:hidden border-t border-white/10 bg-[#1E3932] px-4 py-4 space-y-3 max-h-[85vh] overflow-y-auto custom-scrollbar shadow-2xl">
+          {/* Mobile Search Bar */}
+          <div className="flex items-center gap-2 px-3.5 py-2.5 bg-white/10 border border-white/15 rounded-full">
             <Search className="w-4 h-4 text-[#A3B1A8] shrink-0" />
             <input
               type="text"
@@ -842,36 +844,147 @@ export const DashboardNavbar: React.FC<DashboardNavbarProps> = ({
             )}
           </div>
 
-          {[
-            { id: 'home', label: 'Trang Chủ', href: '/user' },
-            { id: 'venues', label: 'Danh Sách Sân', href: '#venues' },
-            { id: 'vendor', label: 'Quản Lý Vendor', href: '/user/profile?tab=vendor' },
-          ].map((item) => {
-            const isActive = activeNav === item.id;
-            return (
-              <a
-                key={item.id}
-                href={item.href}
-                onClick={(e) => {
-                  setMobileMenuOpen(false);
-                  handleNavClick(e, item.id as 'home' | 'venues' | 'vendor', item.href);
-                }}
-                className={`block px-4 py-2.5 rounded-full text-xs font-mono font-bold uppercase tracking-wider transition-all cursor-pointer ${isActive
-                    ? 'text-white bg-[#006241] shadow-sm'
-                    : 'text-[#FBF8F0] hover:bg-white/10'
-                  }`}
+          {/* If Logged In: Quick Mobile Account Summary */}
+          {currentUser && (
+            <div className="p-3 bg-white/10 rounded-2xl border border-white/15 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  {avatarUrl && !avatarError ? (
+                    <img src={avatarUrl} alt={displayName} className="w-8 h-8 rounded-full object-cover shadow shrink-0" onError={() => setAvatarError(true)} />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-[#006241] flex items-center justify-center font-extrabold text-[#FBF8F0] text-xs shadow shrink-0">
+                      {avatarLetter}
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <div className="font-extrabold text-white text-xs truncate">{displayName}</div>
+                    <div className="text-[10px] text-emerald-300 font-mono truncate">{displayEmail}</div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    navigate('/user/profile?tab=wallet');
+                  }}
+                  className="flex items-center gap-1 bg-emerald-500/20 px-2.5 py-1 rounded-full border border-emerald-400/30 text-emerald-300 text-[11px] font-mono font-bold shrink-0 cursor-pointer"
+                >
+                  <Coins className="w-3 h-3 text-emerald-300" />
+                  <span>{isLoadingWallet ? '...' : `${walletBalance.toLocaleString('vi-VN')} Xu`}</span>
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-1.5 pt-1">
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    navigate('/cart');
+                  }}
+                  className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/5 hover:bg-white/15 text-white text-xs font-semibold transition-colors cursor-pointer"
+                >
+                  <ShoppingBag className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                  <span className="truncate">Giỏ Hàng</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    navigate('/user/profile?tab=booked-yards');
+                  }}
+                  className="flex items-center justify-between gap-1 px-3 py-2 rounded-xl bg-white/5 hover:bg-white/15 text-white text-xs font-semibold transition-colors cursor-pointer"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Calendar className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <span className="truncate">Sân Đã Đặt</span>
+                  </div>
+                  {upcomingBookingsCount > 0 && (
+                    <span className="px-1.5 py-0.2 rounded-full bg-amber-400 text-[#1E3932] text-[9px] font-black shrink-0">
+                      {upcomingBookingsCount}
+                    </span>
+                  )}
+                </button>
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    navigate('/user/profile');
+                  }}
+                  className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/5 hover:bg-white/15 text-white text-xs font-semibold transition-colors cursor-pointer"
+                >
+                  <User className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                  <span className="truncate">Hồ Sơ Của Tôi</span>
+                </button>
+                {currentUser?.role === 'VENDOR' && (
+                  <button
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      navigate('/vendor/dashboard');
+                    }}
+                    className="flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-600/30 text-emerald-200 text-xs font-bold transition-colors cursor-pointer border border-emerald-400/30"
+                  >
+                    <Store className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
+                    <span className="truncate">Vendor Portal</span>
+                  </button>
+                )}
+                {currentUser?.role === 'ADMIN' && (
+                  <button
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      navigate('/admin');
+                    }}
+                    className="flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-600/30 text-emerald-200 text-xs font-bold transition-colors cursor-pointer border border-emerald-400/30"
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
+                    <span className="truncate">Admin Portal</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Nav Links */}
+          <div className="space-y-1">
+            {[
+              { id: 'home', label: 'Trang Chủ', href: '/user' },
+              { id: 'venues', label: 'Danh Sách Sân', href: '#venues' },
+              { id: 'vendor', label: 'Quản Lý Vendor', href: '/user/profile?tab=vendor' },
+            ].map((item) => {
+              const isActive = activeNav === item.id;
+              return (
+                <a
+                  key={item.id}
+                  href={item.href}
+                  onClick={(e) => {
+                    setMobileMenuOpen(false);
+                    handleNavClick(e, item.id as 'home' | 'venues' | 'vendor', item.href);
+                  }}
+                  className={`block px-4 py-2.5 rounded-xl text-xs font-mono font-bold uppercase tracking-wider transition-all cursor-pointer ${isActive
+                      ? 'text-white bg-[#006241] shadow-sm'
+                      : 'text-[#FBF8F0] hover:bg-white/10'
+                    }`}
+                >
+                  {item.label}
+                </a>
+              );
+            })}
+          </div>
+
+          <div className="pt-2 border-t border-white/10">
+            {currentUser ? (
+              <button
+                onClick={handleLogout}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-[#DC2626] bg-white text-xs font-extrabold hover:bg-red-50 transition-all cursor-pointer shadow-sm"
               >
-                {item.label}
-              </a>
-            );
-          })}
-          <div className="pt-2 border-t border-white/10 mt-2">
-            <button
-              onClick={handleLogout}
-              className="w-full flex items-center gap-2 px-4 py-2.5 rounded-full text-[#DC2626] bg-white text-xs font-extrabold hover:bg-red-50 transition-all cursor-pointer"
-            >
-              <LogOut className="w-4 h-4" /> Đăng Xuất
-            </button>
+                <LogOut className="w-4 h-4" /> Đăng Xuất
+              </button>
+            ) : (
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  navigate('/login');
+                }}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-white bg-[#006241] text-xs font-extrabold transition-all cursor-pointer shadow-sm"
+              >
+                <User className="w-4 h-4" /> Đăng Nhập
+              </button>
+            )}
           </div>
         </div>
       )}

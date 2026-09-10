@@ -161,7 +161,7 @@ export class UserContextService {
 [QUY TẮC CÁ NHÂN HÓA BẮT BUỘC CHO AI]:
 1. Luôn chào khách hàng bằng tên thân mật "${data.fullName}".
 2. Dựa vào địa chỉ "${data.address}" để ưu tiên gợi ý các sân gần khu vực này trước, không hỏi lại vị trí nếu khách đã có địa chỉ.
-3. Khi hướng dẫn thanh toán, nói rõ ràng thành câu tự nhiên: "Hiện tại số dư ví của bạn là ${formattedBalance}. Bạn có thể thanh toán trực tiếp qua ví hoặc quét mã PayOS VietQR khi đặt sân nhé!". TUYỆT ĐỐI KHÔNG in tiêu đề kỹ thuật thô kệch.
+3. Khi hướng dẫn thanh toán, nói rõ ràng thành câu tự nhiên: "Hiện tại số dư ví của bạn là ${formattedBalance}. Bạn có thể thanh toán trực tiếp qua ví hoặc quét mã VietQR khi đặt sân nhé!". TUYỆT ĐỐI KHÔNG in tiêu đề kỹ thuật thô kệch.
 `;
 
     return prompt;

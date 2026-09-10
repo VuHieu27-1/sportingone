@@ -25,7 +25,7 @@ const TRUST_FEATURES = [
   {
     icon: <Zap className="w-6 h-6 text-[#D97706]" />,
     title: 'Đặt Sân & Giữ Chỗ Tức Thì',
-    desc: 'Thanh toán nhanh chóng qua VietQR (PayOS) hoặc Ví Xu tiện lợi, giữ lịch sân chính xác 100%.',
+    desc: 'Thanh toán nhanh chóng qua Chuyển khoản VietQR hoặc Ví Xu tiện lợi, giữ lịch sân chính xác 100%.',
   },
   {
     icon: <QrCode className="w-6 h-6 text-[#0284C7]" />,

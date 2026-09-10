@@ -18,6 +18,7 @@ import {
   Plus,
   Trash2,
   Star,
+  AlertCircle,
 } from 'lucide-react';
 import { CustomSelect } from '../common/CustomSelect';
 import toast from 'react-hot-toast';
@@ -337,6 +338,12 @@ export const ProfileInfoTab: React.FC<ProfileInfoTabProps> = ({
     dateOfBirth: profile?.dateOfBirth || '',
   });
 
+  const [profileErrors, setProfileErrors] = useState<{
+    fullName?: string;
+    phone?: string;
+    dateOfBirth?: string;
+  }>({});
+
   // Address Modal State
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
   const [editingAddressId, setEditingAddressId] = useState<number | null>(null);
@@ -550,37 +557,55 @@ export const ProfileInfoTab: React.FC<ProfileInfoTabProps> = ({
       gender: profile?.gender || 'Nam',
       dateOfBirth: profile?.dateOfBirth || '',
     });
+    setProfileErrors({});
     setIsEditingProfile(true);
   };
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
+    const newErrors: { fullName?: string; phone?: string; dateOfBirth?: string } = {};
 
-    if (formData.phone) {
-      const cleanPhone = formData.phone.trim();
-      if (!/^[0-9]{10}$/.test(cleanPhone)) {
-        toast.error('Số điện thoại phải bao gồm đúng 10 chữ số và không chứa chữ hoặc ký tự đặc biệt!');
-        return;
-      }
+    const cleanFullName = (formData.fullName || '').trim();
+    if (!cleanFullName) {
+      newErrors.fullName = 'Họ và tên không được để trống!';
+    } else if (cleanFullName.length < 2) {
+      newErrors.fullName = 'Họ và tên phải có ít nhất 2 ký tự!';
     }
 
-    if (formData.dateOfBirth) {
+    const cleanPhone = (formData.phone || '').trim();
+    if (!cleanPhone) {
+      newErrors.phone = 'Số điện thoại không được để trống!';
+    } else if (!/^[0-9]{10}$/.test(cleanPhone)) {
+      newErrors.phone = 'Số điện thoại phải bao gồm đúng 10 chữ số (VD: 0912345678)!';
+    }
+
+    const currentYear = new Date().getFullYear();
+    if (!formData.dateOfBirth) {
+      newErrors.dateOfBirth = 'Vui lòng chọn ngày sinh!';
+    } else {
       const birthDate = new Date(formData.dateOfBirth);
       const birthYear = birthDate.getFullYear();
-      const currentYear = new Date().getFullYear();
+      const today = new Date();
 
-      if (isNaN(birthYear) || birthYear >= currentYear) {
-        toast.error(`Năm sinh không hợp lệ!`);
-        return;
+      if (isNaN(birthYear) || birthDate > today || birthYear >= currentYear || birthYear < 1920) {
+        newErrors.dateOfBirth = `Năm sinh không hợp lệ (phải từ năm 1920 đến ${currentYear - 1})!`;
       }
     }
 
+    if (Object.keys(newErrors).length > 0) {
+      setProfileErrors(newErrors);
+      const firstErrorMessage = Object.values(newErrors)[0];
+      toast.error(firstErrorMessage);
+      return;
+    }
+
+    setProfileErrors({});
     setIsSavingProfile(true);
 
     try {
       const res = await userProfileService.saveProfile({
-        fullName: formData.fullName,
-        phone: formData.phone,
+        fullName: cleanFullName,
+        phone: cleanPhone,
         gender: formData.gender,
         dateOfBirth: formData.dateOfBirth,
       });
@@ -590,7 +615,13 @@ export const ProfileInfoTab: React.FC<ProfileInfoTabProps> = ({
         setIsEditingProfile(false);
         onProfileUpdated();
       } else {
-        toast.error(res.message || 'Cập nhật thất bại.');
+        const errorMsg = res.message || 'Cập nhật thất bại.';
+        toast.error(errorMsg);
+        if (errorMsg.toLowerCase().includes('số điện thoại') || errorMsg.toLowerCase().includes('phone')) {
+          setProfileErrors((prev) => ({ ...prev, phone: errorMsg }));
+        } else if (errorMsg.toLowerCase().includes('sinh') || errorMsg.toLowerCase().includes('birthday')) {
+          setProfileErrors((prev) => ({ ...prev, dateOfBirth: errorMsg }));
+        }
       }
     } catch {
       toast.error('Đã xảy ra lỗi khi lưu thông tin.');
@@ -608,64 +639,64 @@ export const ProfileInfoTab: React.FC<ProfileInfoTabProps> = ({
           accountAvatarCache.getAvatar(profile?.username || '') ||
           accountAvatarCache.getAvatar(profile?.fullName || '');
         return (
-          <div className="p-6 sm:p-8 rounded-[28px] bg-gradient-to-br from-[#1E3932] to-[#142622] text-[#FBF8F0] border border-[#006241]/30 shadow-xl relative overflow-hidden">
+          <div className="p-5 sm:p-8 rounded-[28px] bg-gradient-to-br from-[#1E3932] to-[#142622] text-[#FBF8F0] border border-[#006241]/30 shadow-xl relative overflow-hidden">
             <div className="absolute top-0 right-0 w-64 h-64 bg-[#006241]/20 rounded-full filter blur-3xl pointer-events-none" />
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 relative z-10">
-              <div className="flex items-center gap-5">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5 sm:gap-6 relative z-10">
+              <div className="flex items-center gap-4 sm:gap-5 w-full sm:w-auto min-w-0 flex-1">
                 {bannerAvatar ? (
                   <img
                     src={bannerAvatar}
                     alt={profile?.username || 'Avatar'}
                     onClick={onAvatarClick}
                     title="Bấm để xem ảnh phóng to toàn màn hình"
-                    className="w-20 h-20 rounded-full object-cover border-4 border-[#FBF8F0]/20 shadow-lg shrink-0 cursor-pointer hover:scale-105 hover:border-emerald-400/50 transition-all"
+                    className="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover border-4 border-[#FBF8F0]/20 shadow-lg shrink-0 cursor-pointer hover:scale-105 hover:border-emerald-400/50 transition-all"
                   />
                 ) : (
-                  <div className="w-20 h-20 rounded-full bg-[#006241] border-4 border-[#FBF8F0]/20 flex items-center justify-center text-3xl font-black text-[#FBF8F0] shadow-lg shrink-0">
+                  <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-[#006241] border-4 border-[#FBF8F0]/20 flex items-center justify-center text-2xl sm:text-3xl font-black text-[#FBF8F0] shadow-lg shrink-0">
                     {(profile?.username || profile?.fullName || 'U').charAt(0).toUpperCase()}
                   </div>
                 )}
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-xl sm:text-2xl font-extrabold text-[#FBF8F0]">
-                  {profile?.username || profile?.fullName || 'Người Dùng'}
-                </h2>
-                <CheckCircle2 className="w-5 h-5 text-emerald-400 fill-emerald-400/20" />
-              </div>
-              <p className="text-xs text-[#A3B1A8] font-medium mt-1">
-                Tài khoản Thành viên Chính thức
-              </p>
-              <div className="flex flex-wrap items-center gap-3 mt-3">
-                {profile?.email && (
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 border border-white/15 text-xs text-[#FBF8F0] font-semibold">
-                    <Mail className="w-3.5 h-3.5 text-emerald-400" />
-                    {profile.email}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <h2 className="text-lg sm:text-2xl font-extrabold text-[#FBF8F0] truncate">
+                      {profile?.username || profile?.fullName || 'Người Dùng'}
+                    </h2>
+                    <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400 fill-emerald-400/20 shrink-0" />
                   </div>
-                )}
-                {profile?.phone && (
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 border border-white/15 text-xs text-[#FBF8F0] font-semibold">
-                    <Phone className="w-3.5 h-3.5 text-emerald-400" />
-                    {profile.phone}
+                  <p className="text-xs text-[#A3B1A8] font-medium mt-0.5 truncate">
+                    Tài khoản Thành viên Chính thức
+                  </p>
+                  <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-2.5">
+                    {profile?.email && (
+                      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 border border-white/15 text-[11px] sm:text-xs text-[#FBF8F0] font-semibold max-w-full min-w-0">
+                        <Mail className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                        <span className="truncate">{profile.email}</span>
+                      </div>
+                    )}
+                    {profile?.phone && (
+                      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 border border-white/15 text-[11px] sm:text-xs text-[#FBF8F0] font-semibold shrink-0">
+                        <Phone className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                        <span>{profile.phone}</span>
+                      </div>
+                    )}
                   </div>
-                )}
+                </div>
               </div>
+
+              <button
+                onClick={handleEditProfileClick}
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-full bg-[#006241] hover:bg-[#007a52] text-[#FBF8F0] font-bold text-xs shadow-lg transition-all cursor-pointer border border-white/20 shrink-0"
+              >
+                <Edit2 className="w-4 h-4" />
+                <span>Chỉnh Sửa Hồ Sơ</span>
+              </button>
             </div>
           </div>
-
-            <button
-              onClick={handleEditProfileClick}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#006241] hover:bg-[#007a52] text-[#FBF8F0] font-bold text-xs shadow-lg transition-all cursor-pointer border border-white/20 shrink-0"
-            >
-              <Edit2 className="w-4 h-4" />
-              <span>Chỉnh Sửa Hồ Sơ</span>
-            </button>
-          </div>
-        </div>
-      );
-    })()}
+        );
+      })()}
 
       {/* Detailed Personal Information */}
-      <div className="p-6 sm:p-7 rounded-[28px] bg-white border border-[#E6E2D8] shadow-md hover:shadow-lg transition-shadow">
+      <div className="p-5 sm:p-7 rounded-[28px] bg-white border border-[#E6E2D8] shadow-md hover:shadow-lg transition-shadow">
         <div className="flex items-center justify-between pb-4 mb-5 border-b border-[#F2F0EB]">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-full bg-[#006241]/10 flex items-center justify-center text-[#006241]">
@@ -678,12 +709,12 @@ export const ProfileInfoTab: React.FC<ProfileInfoTabProps> = ({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
           <div>
             <span className="block text-[11px] font-semibold text-[#6F7E72] uppercase tracking-wider">Họ và tên</span>
-            <span className="text-sm font-bold text-[#1E3932] mt-0.5 block">{profile?.fullName || 'Chưa cập nhật'}</span>
+            <span className="text-sm font-bold text-[#1E3932] mt-0.5 block break-words">{profile?.fullName || 'Chưa cập nhật'}</span>
           </div>
 
           <div>
             <span className="block text-[11px] font-semibold text-[#6F7E72] uppercase tracking-wider">Email liên hệ</span>
-            <span className="text-sm font-bold text-[#1E3932] mt-0.5 block">{profile?.email || 'Chưa cập nhật'}</span>
+            <span className="text-sm font-bold text-[#1E3932] mt-0.5 block break-all">{profile?.email || 'Chưa cập nhật'}</span>
           </div>
 
           <div>
@@ -708,16 +739,16 @@ export const ProfileInfoTab: React.FC<ProfileInfoTabProps> = ({
       </div>
 
       {/* Address Book (user_address entity) */}
-      <div className="p-6 sm:p-7 rounded-[28px] bg-white border border-[#E6E2D8] shadow-md hover:shadow-lg transition-shadow">
-        <div className="flex items-center justify-between pb-4 mb-5 border-b border-[#F2F0EB]">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-full bg-[#006241]/10 flex items-center justify-center text-[#006241]">
+      <div className="p-4 sm:p-7 rounded-[28px] bg-white border border-[#E6E2D8] shadow-md hover:shadow-lg transition-shadow">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 mb-5 border-b border-[#F2F0EB]">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-full bg-[#006241]/10 flex items-center justify-center text-[#006241] shrink-0">
               <MapPin className="w-4 h-4" />
             </div>
-            <div>
-              <h3 className="font-extrabold text-[#1E3932] text-base">Danh Sách Địa Chỉ Người Dùng</h3>
-              <p className="text-xs text-[#6F7E72] font-medium">
-                Quản lý các địa chỉ giao hàng / thi đấu của bạn ({addresses.length} địa chỉ)
+            <div className="min-w-0">
+              <h3 className="font-extrabold text-[#1E3932] text-sm sm:text-base truncate">Danh Sách Địa Chỉ Người Dùng</h3>
+              <p className="text-xs text-[#6F7E72] font-medium truncate">
+                Quản lý địa chỉ giao hàng / thi đấu ({addresses.length} địa chỉ)
               </p>
             </div>
           </div>
@@ -725,15 +756,15 @@ export const ProfileInfoTab: React.FC<ProfileInfoTabProps> = ({
           <button
             type="button"
             onClick={handleOpenAddAddressModal}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#006241] hover:bg-[#007a52] text-white text-xs font-bold transition-all shadow-md cursor-pointer"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-full bg-[#006241] hover:bg-[#007a52] text-white text-xs font-bold transition-all shadow-md cursor-pointer shrink-0"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-4 h-4 shrink-0" />
             <span>Thêm Địa Chỉ Mới</span>
           </button>
         </div>
 
         {addresses.length === 0 ? (
-          <div className="p-8 text-center bg-[#F2F0EB]/50 rounded-2xl border border-dashed border-[#E6E2D8] space-y-2">
+          <div className="p-6 sm:p-8 text-center bg-[#F2F0EB]/50 rounded-2xl border border-dashed border-[#E6E2D8] space-y-2">
             <MapPin className="w-8 h-8 text-[#006241] mx-auto opacity-40" />
             <p className="text-xs font-bold text-[#1E3932]">Bạn chưa có địa chỉ nào trong sổ địa chỉ.</p>
             <p className="text-[11px] text-[#6F7E72]">Nhấp vào "Thêm Địa Chỉ Mới" để tạo hoặc chọn tự động từ vị trí GPS.</p>
@@ -743,31 +774,35 @@ export const ProfileInfoTab: React.FC<ProfileInfoTabProps> = ({
             {addresses.map((addr) => (
               <div
                 key={addr.id}
-                className={`p-4 rounded-2xl border transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 ${
+                className={`p-3.5 sm:p-4 rounded-2xl border transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 ${
                   addr.isDefault
                     ? 'bg-[#006241]/5 border-[#006241]/30 ring-1 ring-[#006241]/20'
                     : 'bg-[#F2F0EB]/60 border-[#E6E2D8] hover:border-[#006241]/30'
                 }`}
               >
-                <div className="space-y-1 min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <MapPin className="w-4 h-4 text-[#006241] shrink-0" />
-                    <span className="text-xs font-extrabold text-[#1E3932] truncate">{addr.address}</span>
+                <div className="space-y-1.5 min-w-0 w-full flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex items-start gap-2 min-w-0 flex-1">
+                      <MapPin className="w-4 h-4 text-[#006241] shrink-0 mt-0.5" />
+                      <span className="text-xs font-extrabold text-[#1E3932] break-words break-all sm:break-normal min-w-0">
+                        {addr.address}
+                      </span>
+                    </div>
                     {addr.isDefault && (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#006241] text-white text-[10px] font-bold">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#006241] text-white text-[10px] font-bold shrink-0">
                         <Star className="w-3 h-3 fill-white" />
                         Mặc định
                       </span>
                     )}
                   </div>
                   {addr.latitude && addr.longitude && (
-                    <div className="text-[10px] text-[#6F7E72] font-mono pl-6">
+                    <div className="text-[10px] text-[#6F7E72] font-mono pl-6 break-all">
                       Tọa độ GPS: {Number(addr.latitude).toFixed(6)}, {Number(addr.longitude).toFixed(6)}
                     </div>
                   )}
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto justify-end pt-2 sm:pt-0 border-t sm:border-0 border-[#E6E2D8]/60">
                   {!addr.isDefault && (
                     <button
                       type="button"
@@ -821,28 +856,58 @@ export const ProfileInfoTab: React.FC<ProfileInfoTabProps> = ({
 
             <form onSubmit={handleSaveProfile} className="p-6 space-y-4 text-left max-h-[85vh] overflow-y-auto">
               <div>
-                <label className="block text-xs font-bold text-[#1E3932] mb-1">Họ và tên đầy đủ</label>
+                <label className="block text-xs font-bold text-[#1E3932] mb-1">
+                  Họ và tên đầy đủ <span className="text-rose-500">*</span>
+                </label>
                 <input
                   type="text"
                   required
                   value={formData.fullName}
-                  onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
+                  onChange={(e) => {
+                    setFormData({ ...formData, fullName: e.target.value });
+                    if (profileErrors.fullName) setProfileErrors((p) => ({ ...p, fullName: undefined }));
+                  }}
                   placeholder="Ví dụ: Nguyễn Văn A"
-                  className="w-full px-4 py-2.5 rounded-xl bg-white border border-[#E6E2D8] text-sm text-[#1E3932] font-semibold focus:outline-none focus:ring-2 focus:ring-[#006241]"
+                  className={`w-full px-4 py-2.5 rounded-xl bg-white border text-sm text-[#1E3932] font-semibold focus:outline-none transition-all ${
+                    profileErrors.fullName
+                      ? 'border-rose-500 focus:ring-2 focus:ring-rose-500/20 bg-rose-50/20'
+                      : 'border-[#E6E2D8] focus:ring-2 focus:ring-[#006241]'
+                  }`}
                 />
+                {profileErrors.fullName && (
+                  <p className="text-xs text-rose-600 font-bold mt-1.5 flex items-center gap-1 animate-in fade-in">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    <span>{profileErrors.fullName}</span>
+                  </p>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-[#1E3932] mb-1">Số điện thoại</label>
+                  <label className="block text-xs font-bold text-[#1E3932] mb-1">
+                    Số điện thoại <span className="text-rose-500">*</span>
+                  </label>
                   <input
                     type="text"
                     required
                     value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    onChange={(e) => {
+                      setFormData({ ...formData, phone: e.target.value });
+                      if (profileErrors.phone) setProfileErrors((p) => ({ ...p, phone: undefined }));
+                    }}
                     placeholder="0912345678"
-                    className="w-full px-4 py-2.5 rounded-xl bg-white border border-[#E6E2D8] text-sm text-[#1E3932] font-semibold focus:outline-none focus:ring-2 focus:ring-[#006241]"
+                    className={`w-full px-4 py-2.5 rounded-xl bg-white border text-sm text-[#1E3932] font-semibold focus:outline-none transition-all ${
+                      profileErrors.phone
+                        ? 'border-rose-500 focus:ring-2 focus:ring-rose-500/20 bg-rose-50/20'
+                        : 'border-[#E6E2D8] focus:ring-2 focus:ring-[#006241]'
+                    }`}
                   />
+                  {profileErrors.phone && (
+                    <p className="text-xs text-rose-600 font-bold mt-1.5 flex items-center gap-1 animate-in fade-in">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                      <span>{profileErrors.phone}</span>
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -861,14 +926,31 @@ export const ProfileInfoTab: React.FC<ProfileInfoTabProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-[#1E3932] mb-1">Ngày sinh</label>
+                <label className="block text-xs font-bold text-[#1E3932] mb-1">
+                  Ngày sinh <span className="text-rose-500">*</span>
+                </label>
                 <input
                   type="date"
                   required
+                  min="1920-01-01"
+                  max={`${new Date().getFullYear() - 1}-12-31`}
                   value={formData.dateOfBirth}
-                  onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
-                  className="w-full px-4 py-2.5 rounded-xl bg-white border border-[#E6E2D8] text-sm text-[#1E3932] font-semibold focus:outline-none focus:ring-2 focus:ring-[#006241]"
+                  onChange={(e) => {
+                    setFormData({ ...formData, dateOfBirth: e.target.value });
+                    if (profileErrors.dateOfBirth) setProfileErrors((p) => ({ ...p, dateOfBirth: undefined }));
+                  }}
+                  className={`w-full px-4 py-2.5 rounded-xl bg-white border text-sm text-[#1E3932] font-semibold focus:outline-none transition-all ${
+                    profileErrors.dateOfBirth
+                      ? 'border-rose-500 focus:ring-2 focus:ring-rose-500/20 bg-rose-50/20'
+                      : 'border-[#E6E2D8] focus:ring-2 focus:ring-[#006241]'
+                  }`}
                 />
+                {profileErrors.dateOfBirth && (
+                  <p className="text-xs text-rose-600 font-bold mt-1.5 flex items-center gap-1 animate-in fade-in">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    <span>{profileErrors.dateOfBirth}</span>
+                  </p>
+                )}
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-[#E6E2D8]">
@@ -915,16 +997,16 @@ export const ProfileInfoTab: React.FC<ProfileInfoTabProps> = ({
             </div>
 
             <form onSubmit={handleSaveAddress} className="p-6 space-y-4 text-left max-h-[85vh] overflow-y-auto">
-              <div className="flex items-center justify-between gap-2 text-xs font-bold text-[#1E3932]">
-                <div className="flex items-center gap-2">
-                  <MapPin className="w-4 h-4 text-[#006241]" />
-                  <span>Chọn Địa Chỉ Hành Chính (Tỉnh / Phường)</span>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs font-bold text-[#1E3932]">
+                <div className="flex items-center gap-2 min-w-0">
+                  <MapPin className="w-4 h-4 text-[#006241] shrink-0" />
+                  <span className="truncate">Chọn Địa Chỉ Hành Chính (Tỉnh / Phường)</span>
                 </div>
                 <button
                   type="button"
                   onClick={handleFetchGpsLocation}
                   disabled={isGpsLoading}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#006241]/10 hover:bg-[#006241] text-[#006241] hover:text-white border border-[#006241]/30 text-xs font-extrabold transition-all duration-200 cursor-pointer disabled:opacity-50"
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-full bg-[#006241]/10 hover:bg-[#006241] text-[#006241] hover:text-white border border-[#006241]/30 text-xs font-extrabold transition-all duration-200 cursor-pointer disabled:opacity-50 shrink-0"
                   title="Tự động lấy vị trí hiện tại qua GPS"
                 >
                   {isGpsLoading ? (

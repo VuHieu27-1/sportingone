@@ -1168,7 +1168,7 @@ export class BookingsMonthService {
 
     const bm = await this.repository.findOne({
       where: { id: bookingMonthId },
-      relations: { yard: { vendor: true }, user: { detailUser: true } },
+      relations: { yard: { vendor: true, sportType: true, typeYard: true }, user: { detailUser: true } },
       withDeleted: true,
     });
 
@@ -1236,10 +1236,12 @@ export class BookingsMonthService {
         yardName: bm.yard?.yardName,
         vendorName: bm.yard?.vendor?.vendorName,
         vendorAddress: bm.yard?.vendor?.vendorAddress,
+        sportName: bm.yard?.sportType?.sportName || 'Thể thao',
+        typeName: bm.yard?.typeYard?.typeName || 'Sân tiêu chuẩn',
         username: bm.user?.username,
         email: bm.user?.email,
-        phone: bm.user?.detailUser?.phone || '',
-        userPhone: bm.user?.detailUser?.phone || '',
+        phone: bm.user?.detailUser?.phone || (bm.user as any)?.phone || '',
+        userPhone: bm.user?.detailUser?.phone || (bm.user as any)?.phone || '',
         startDate: bm.startDate,
         endDate: bm.endDate,
         startTime: bm.startTime,

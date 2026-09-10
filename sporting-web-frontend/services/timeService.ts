@@ -155,9 +155,6 @@ export const timeService = {
   },
 };
 
-// Automatically initiate time sync on module load
-timeService.getCurrentTime().catch(() => {});
-
 /**
  * Formats a Date or ISO string to Display Date Time (e.g. "14:30 - 15/08/2026")
  */

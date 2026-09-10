@@ -34,6 +34,7 @@ export class GoogleDriveService {
   private yardImagesFolderId: string | null = null;
   private ratesImagesFolderId: string | null = null;
   private chatFilesFolderId: string | null = null;
+  private backupFolderId: string | null = null;
 
   constructor(private readonly configService: ConfigService) { }
 
@@ -1030,5 +1031,211 @@ export class GoogleDriveService {
     if (fileDMatch) return fileDMatch[1];
 
     return null;
+  }
+
+  /**
+   * Finds or creates sporting-backups folder inside root folder
+   */
+  async getBackupFolderId(): Promise<string> {
+    if (this.backupFolderId) {
+      return this.backupFolderId;
+    }
+
+    const rootFolderId =
+      this.configService.get<string>('GOOGLE_DRIVE_ROOT_FOLDER_ID') ||
+      process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID ||
+      '1qn6Cu-SrehkvG0jC26dq1RcvCa93XwQX';
+
+    const backupFolderName =
+      this.configService.get<string>('GOOGLE_DRIVE_BACKUP_FOLDER_NAME') ||
+      process.env.GOOGLE_DRIVE_BACKUP_FOLDER_NAME ||
+      'sporting-backups';
+
+    const accessToken = await this.getAccessToken();
+
+    try {
+      const query = `'${rootFolderId}' in parents and name = '${backupFolderName}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
+      const searchUrl = `https://www.googleapis.com/drive/v3/files?supportsAllDrives=true&includeItemsFromAllDrives=true&q=${encodeURIComponent(
+        query,
+      )}&fields=files(id,name)`;
+
+      const searchRes = await fetch(searchUrl, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      if (searchRes.ok) {
+        const searchData = (await searchRes.json()) as {
+          files?: Array<{ id: string; name: string }>;
+        };
+        if (searchData.files && searchData.files.length > 0) {
+          this.backupFolderId = searchData.files[0].id;
+          this.logger.log(`Found existing backup folder on Google Drive: ${this.backupFolderId}`);
+          return this.backupFolderId;
+        }
+      }
+
+      const createRes = await fetch('https://www.googleapis.com/drive/v3/files?supportsAllDrives=true', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: backupFolderName,
+          mimeType: 'application/vnd.google-apps.folder',
+          parents: [rootFolderId],
+        }),
+      });
+
+      if (createRes.ok) {
+        const createData = (await createRes.json()) as { id: string };
+        this.backupFolderId = createData.id;
+        this.logger.log(`Created new backup folder on Google Drive: ${this.backupFolderId}`);
+        return this.backupFolderId;
+      }
+      this.backupFolderId = rootFolderId;
+      return this.backupFolderId;
+    } catch (err: any) {
+      this.logger.warn(`Error resolving backup folder ID, falling back to root folder: ${err?.message || err}`);
+      this.backupFolderId = rootFolderId;
+      return this.backupFolderId;
+    }
+  }
+
+  /**
+   * Uploads database backup ZIP file to Google Drive folder sporting-backups
+   */
+  async uploadBackup(
+    fileBuffer: Buffer,
+    fileName: string,
+  ): Promise<GoogleDriveUploadResult> {
+    if (!fileBuffer || fileBuffer.length === 0) {
+      throw new BadRequestException('Backup file contains no data');
+    }
+
+    const folderId = await this.getBackupFolderId();
+    const accessToken = await this.getAccessToken();
+
+    const boundary = `-------SportingDriveBackupBoundary${Date.now()}`;
+    const delimiter = `\r\n--${boundary}\r\n`;
+    const closeDelimiter = `\r\n--${boundary}--`;
+
+    const metadata = {
+      name: fileName,
+      parents: [folderId],
+      mimeType: 'application/zip',
+    };
+
+    const multipartRequestBody = Buffer.concat([
+      Buffer.from(
+        delimiter +
+        'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+        JSON.stringify(metadata) +
+        delimiter +
+        'Content-Type: application/zip\r\n' +
+        'Content-Transfer-Encoding: binary\r\n\r\n',
+      ),
+      fileBuffer,
+      Buffer.from(closeDelimiter),
+    ]);
+
+    const uploadUrl =
+      'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id,name,webViewLink,webContentLink';
+
+    const response = await fetch(uploadUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': `multipart/related; boundary=${boundary}`,
+        'Content-Length': multipartRequestBody.length.toString(),
+      },
+      body: multipartRequestBody,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      this.logger.error(`Google Drive backup upload error (${response.status}): ${errorText}`);
+      throw new InternalServerErrorException(
+        `Failed to upload backup to Google Drive: ${errorText}`,
+      );
+    }
+
+    const resultData = (await response.json()) as {
+      id: string;
+      name: string;
+      webViewLink?: string;
+      webContentLink?: string;
+    };
+
+    return {
+      fileId: resultData.id,
+      directUrl: resultData.webContentLink || `https://drive.google.com/file/d/${resultData.id}/view`,
+      webViewLink: resultData.webViewLink,
+      fileName: resultData.name,
+    };
+  }
+
+  /**
+   * Downloads backup file binary from Google Drive
+   */
+  async downloadBackup(fileId: string): Promise<Buffer> {
+    const accessToken = await this.getAccessToken();
+    const downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&supportsAllDrives=true`;
+
+    const res = await fetch(downloadUrl, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Tải file từ Google Drive thất bại (${res.status}): ${errText}`);
+    }
+
+    const arrayBuffer = await res.arrayBuffer();
+    return Buffer.from(arrayBuffer);
+  }
+
+  /**
+   * Get Google Drive Backup Storage Status
+   */
+  async getBackupStorageStatus(): Promise<{
+    configured: boolean;
+    folderName: string;
+    rootFolderId: string;
+    backupFolderId?: string;
+    message: string;
+  }> {
+    const rootFolderId =
+      this.configService.get<string>('GOOGLE_DRIVE_ROOT_FOLDER_ID') ||
+      process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID ||
+      '1qn6Cu-SrehkvG0jC26dq1RcvCa93XwQX';
+
+    const backupFolderName =
+      this.configService.get<string>('GOOGLE_DRIVE_BACKUP_FOLDER_NAME') ||
+      process.env.GOOGLE_DRIVE_BACKUP_FOLDER_NAME ||
+      'sporting-backups';
+
+    try {
+      const folderId = await this.getBackupFolderId();
+      return {
+        configured: true,
+        folderName: backupFolderName,
+        rootFolderId,
+        backupFolderId: folderId,
+        message: 'Đã kết nối Google Drive API thành công.',
+      };
+    } catch (err: any) {
+      return {
+        configured: false,
+        folderName: backupFolderName,
+        rootFolderId,
+        message: `Lỗi kết nối Google Drive: ${err?.message || err}`,
+      };
+    }
   }
 }

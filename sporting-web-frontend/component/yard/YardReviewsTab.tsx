@@ -13,13 +13,38 @@ import {
   ShieldCheck,
   Filter,
   Image as ImageIcon,
+  Clock,
+  Calendar,
+  AlertCircle,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { AuthUser } from '../../types/auth';
 import { rateService } from '../../services/rateService';
-import { RateItem, RatingStats } from '../../types/rate';
+import { RateItem, RatingStats, ReviewEligibilityResponse } from '../../types/rate';
 import { formatDateVietnamese } from '../../utils/dateUtils';
 import { BackendYardItem } from '../../services/vendorService';
+
+export const formatBookingPlayTime = (startStr?: string | Date, endStr?: string | Date): string => {
+  if (!startStr) return '';
+  const d = new Date(startStr);
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  const startHour = String(d.getHours()).padStart(2, '0');
+  const startMinute = String(d.getMinutes()).padStart(2, '0');
+
+  let endHourMinute = '';
+  if (endStr) {
+    const endD = new Date(endStr);
+    const endH = String(endD.getHours()).padStart(2, '0');
+    const endM = String(endD.getMinutes()).padStart(2, '0');
+    endHourMinute = ` • ${startHour}:${startMinute} – ${endH}:${endM}`;
+  } else {
+    endHourMinute = ` • ${startHour}:${startMinute}`;
+  }
+
+  return `${day}/${month}/${year}${endHourMinute}`;
+};
 
 interface YardReviewsTabProps {
   yard: BackendYardItem;
@@ -48,6 +73,11 @@ export const YardReviewsTab: React.FC<YardReviewsTabProps> = ({
   });
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [selectedStarFilter, setSelectedStarFilter] = useState<number | 'ALL'>('ALL');
+
+  // Booking Eligibility State
+  const [eligibility, setEligibility] = useState<ReviewEligibilityResponse | null>(null);
+  const [isLoadingEligibility, setIsLoadingEligibility] = useState<boolean>(false);
+  const [selectedBookingId, setSelectedBookingId] = useState<number | null>(null);
 
   // Form State
   const [rating, setRating] = useState<number>(5);
@@ -87,9 +117,37 @@ export const YardReviewsTab: React.FC<YardReviewsTabProps> = ({
     }
   }, [yard?.id]);
 
+  const loadEligibility = useCallback(async () => {
+    if (!yard?.id || !currentUser?.id) {
+      setEligibility(null);
+      setSelectedBookingId(null);
+      return;
+    }
+    setIsLoadingEligibility(true);
+    try {
+      const res = await rateService.checkEligibility(yard.id, currentUser.id);
+      if (res.success && res.data) {
+        setEligibility(res.data);
+        if (res.data.eligibleBookings && res.data.eligibleBookings.length > 0) {
+          setSelectedBookingId(res.data.eligibleBookings[0].id);
+        } else {
+          setSelectedBookingId(null);
+        }
+      }
+    } catch {
+      // Non-blocking
+    } finally {
+      setIsLoadingEligibility(false);
+    }
+  }, [yard?.id, currentUser?.id]);
+
   useEffect(() => {
     loadRates();
   }, [loadRates]);
+
+  useEffect(() => {
+    loadEligibility();
+  }, [loadEligibility]);
 
   const handleUploadFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -100,18 +158,18 @@ export const YardReviewsTab: React.FC<YardReviewsTabProps> = ({
       return;
     }
 
-    const fileList: File[] = Array.from(files);
     setIsUploadingImages(true);
     try {
+      const fileList = Array.from(files);
       const res = await rateService.uploadRateImages(fileList);
       if (res.success && res.data?.urls) {
-        setImages((prev) => [...prev, ...res.data!.urls]);
-        toast.success(`Đã tải lên ${res.data.urls.length} ảnh lên thành công!`);
+        setImages((prev) => [...prev, ...(res.data?.urls || [])].slice(0, 4));
+        toast.success(`Đã tải lên ${res.data.urls.length} ảnh`);
       } else {
-        toast.error(res.message || 'Không thể tải ảnh lên.');
+        toast.error(res.message || 'Lỗi tải ảnh lên.');
       }
     } catch {
-      toast.error('Lỗi khi tải ảnh lên.');
+      toast.error('Không thể tải ảnh lên Google Drive.');
     } finally {
       setIsUploadingImages(false);
       e.target.value = '';
@@ -129,13 +187,27 @@ export const YardReviewsTab: React.FC<YardReviewsTabProps> = ({
       return;
     }
 
+    if (!eligibility?.canReview) {
+      toast.error(
+        eligibility?.message ||
+          'Bạn cần đặt và hoàn thành một lượt chơi tại sân này trước khi có thể đánh giá!',
+      );
+      return;
+    }
+
+    if (!comment.trim()) {
+      toast.error('Vui lòng nhập nội dung nhận xét trước khi gửi đánh giá!');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const res = await rateService.createRate({
         yardId: Number(yard.id),
         userId: Number(currentUser.id),
         rating,
-        comment: comment.trim() || undefined,
+        comment: comment.trim(),
+        bookingId: selectedBookingId || undefined,
         images: images.length > 0 ? images : undefined,
       });
 
@@ -145,22 +217,28 @@ export const YardReviewsTab: React.FC<YardReviewsTabProps> = ({
         setImages([]);
         setRating(5);
         await loadRates();
+        await loadEligibility();
         if (onReviewsUpdated) onReviewsUpdated();
       } else {
         toast.error(res.message || 'Không thể gửi đánh giá.');
       }
-    } catch {
-      toast.error('Lỗi kết nối khi gửi đánh giá.');
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Lỗi kết nối khi gửi đánh giá.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleUpdateReview = async (reviewId: number) => {
+    if (!editComment.trim()) {
+      toast.error('Vui lòng nhập nội dung nhận xét trước khi cập nhật đánh giá!');
+      return;
+    }
+
     try {
       const res = await rateService.updateRate(reviewId, {
         rating: editRating,
-        comment: editComment.trim() || undefined,
+        comment: editComment.trim(),
       });
 
       if (res.success) {
@@ -417,21 +495,140 @@ export const YardReviewsTab: React.FC<YardReviewsTabProps> = ({
           )}
         </div>
 
-        <form onSubmit={handleSubmitReview} className="space-y-5">
-          {/* Interactive Star Picker - Highlighted Hero Box */}
-          <div className="p-5 rounded-2xl bg-gradient-to-r from-[#FBF8F0] to-[#F5F2EB] border border-[#E6E2D8] flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <span className="text-xs font-black uppercase tracking-wider text-[#1E3932] block">
-                Mức độ hài lòng của bạn
-              </span>
-              <span className="text-[11px] text-[#6F7E72] mt-0.5 block">
-                Hãy chấm điểm trải nghiệm tổng quan tại sân
-              </span>
-            </div>
+        {!currentUser ? (
+          <div className="p-8 text-center bg-[#FBF8F0] rounded-2xl border border-[#E6E2D8] space-y-2">
+            <AlertCircle className="w-8 h-8 text-amber-600 mx-auto" />
+            <h4 className="text-sm font-extrabold text-[#1E3932]">Vui lòng đăng nhập</h4>
+            <p className="text-xs text-[#6F7E72] max-w-md mx-auto">
+              Bạn cần đăng nhập tài khoản và hoàn thành lượt chơi tại sân này để có thể gửi đánh giá.
+            </p>
+          </div>
+        ) : isLoadingEligibility ? (
+          <div className="p-8 text-center space-y-2 bg-[#FBF8F0]/50 rounded-2xl border border-[#E6E2D8]">
+            <Loader2 className="w-6 h-6 text-[#006241] animate-spin mx-auto" />
+            <p className="text-xs text-[#6F7E72] font-medium">Đang kiểm tra lịch sử đặt sân của bạn...</p>
+          </div>
+        ) : !eligibility?.canReview ? (
+          <div>
+            {eligibility?.reason === 'NO_BOOKING' && (
+              <div className="p-6 sm:p-8 rounded-2xl bg-[#FBF8F0] border border-[#E6E2D8] text-center space-y-3">
+                <div className="w-12 h-12 rounded-full bg-emerald-50 text-[#006241] flex items-center justify-center mx-auto border border-emerald-200 shadow-2xs">
+                  <Calendar className="w-6 h-6" />
+                </div>
+                <div className="max-w-md mx-auto space-y-1">
+                  <h4 className="text-sm font-extrabold text-[#1E3932]">Chưa có lượt đặt sân hoàn thành</h4>
+                  <p className="text-xs text-[#6F7E72] leading-relaxed">
+                    Bạn cần đặt và hoàn thành một lượt chơi tại sân này trước khi có thể đánh giá.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {eligibility?.reason === 'UPCOMING_ONLY' && (
+              <div className="p-6 sm:p-8 rounded-2xl bg-amber-50/70 border border-amber-200 text-center space-y-3">
+                <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center mx-auto border border-amber-300 shadow-2xs">
+                  <Clock className="w-6 h-6" />
+                </div>
+                <div className="max-w-md mx-auto space-y-1">
+                  <h4 className="text-sm font-extrabold text-[#1E3932]">Bạn có một lượt đặt sân sắp tới</h4>
+                  <p className="text-xs text-[#6F7E72] leading-relaxed">
+                    Bạn có thể đánh giá sau khi hoàn thành lượt chơi.
+                  </p>
+                  {eligibility?.upcomingBookings?.[0] && (
+                    <div className="inline-flex items-center gap-1.5 mt-2 px-3.5 py-1.5 rounded-full bg-white text-xs font-bold text-amber-800 border border-amber-200 shadow-2xs font-mono">
+                      <span>Lượt chơi sắp tới: {formatBookingPlayTime(eligibility.upcomingBookings[0].startTime, eligibility.upcomingBookings[0].endTime)}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {eligibility?.reason === 'ALL_REVIEWED' && (
+              <div className="p-6 sm:p-8 rounded-2xl bg-[#FBF8F0] border border-[#E6E2D8] text-center space-y-3">
+                <div className="w-12 h-12 rounded-full bg-emerald-50 text-[#006241] flex items-center justify-center mx-auto border border-emerald-200 shadow-2xs">
+                  <CheckCircle2 className="w-6 h-6" />
+                </div>
+                <div className="max-w-md mx-auto space-y-1">
+                  <h4 className="text-sm font-extrabold text-[#1E3932]">Đã hoàn tất đánh giá</h4>
+                  <p className="text-xs text-[#6F7E72] leading-relaxed">
+                    Bạn đã đánh giá tất cả các lượt chơi trước đó tại sân này. Hãy tiếp tục đặt sân để trải nghiệm và gửi đánh giá mới nhé!
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <form onSubmit={handleSubmitReview} className="space-y-5">
+            {/* Booking Selector or Single Booking Info */}
+            {eligibility.eligibleBookings && eligibility.eligibleBookings.length > 1 ? (
+              <div className="p-4 rounded-2xl bg-[#FBF8F0] border border-[#E6E2D8] space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black uppercase tracking-wider text-[#1E3932] flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-[#006241]" />
+                    Chọn lượt chơi bạn muốn đánh giá:
+                  </span>
+                  <span className="text-[11px] text-[#6F7E72] font-mono">
+                    ({eligibility.eligibleBookings.length} lượt đã hoàn thành)
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                  {eligibility.eligibleBookings.map((b) => {
+                    const isSelected = selectedBookingId === b.id;
+                    return (
+                      <div
+                        key={b.id}
+                        onClick={() => setSelectedBookingId(b.id)}
+                        className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
+                          isSelected
+                            ? 'bg-emerald-50 border-[#006241] ring-1 ring-[#006241] shadow-2xs'
+                            : 'bg-white border-[#E6E2D8] hover:border-[#006241]/40'
+                        }`}
+                      >
+                        <div className="space-y-0.5">
+                          <div className="text-xs font-bold text-[#1E3932] flex items-center gap-1.5">
+                            <Clock className="w-3 h-3 text-[#006241]" />
+                            <span>{formatBookingPlayTime(b.startTime, b.endTime)}</span>
+                          </div>
+                          <div className="text-[10px] text-[#6F7E72]">
+                            Lượt chơi đã hoàn thành
+                          </div>
+                        </div>
+                        <div
+                          className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ml-2 ${
+                            isSelected ? 'border-[#006241] bg-[#006241]' : 'border-gray-300'
+                          }`}
+                        >
+                          {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : eligibility.eligibleBookings && eligibility.eligibleBookings.length === 1 ? (
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#FBF8F0] border border-[#E6E2D8] text-xs text-[#1E3932]">
+                <Clock className="w-3.5 h-3.5 text-[#006241] shrink-0" />
+                <span className="font-bold">Đã chơi:</span>
+                <span className="font-mono text-[#006241] font-semibold">
+                  {formatBookingPlayTime(eligibility.eligibleBookings[0].startTime, eligibility.eligibleBookings[0].endTime)}
+                </span>
+              </div>
+            ) : null}
+
+            {/* Interactive Star Picker - Highlighted Hero Box */}
+            <div className="p-5 rounded-2xl bg-gradient-to-r from-[#FBF8F0] to-[#F5F2EB] border border-[#E6E2D8] flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <span className="text-xs font-black uppercase tracking-wider text-[#1E3932] block">
+                  Mức độ hài lòng của bạn
+                </span>
+                <span className="text-[11px] text-[#6F7E72] mt-0.5 block">
+                  Hãy chấm điểm trải nghiệm tổng quan tại sân
+                </span>
+              </div>
 
             <div className="flex items-center gap-3.5 flex-wrap">
               <div
-                className="flex items-center gap-1 bg-white px-3 py-1.5 rounded-2xl border border-[#E6E2D8] shadow-2xs"
+                className="flex items-center gap-1 bg-white px-2.5 py-1 rounded-2xl border border-[#E6E2D8] shadow-2xs shrink-0"
                 onMouseLeave={() => setHoverRating(0)}
               >
                 {[1, 2, 3, 4, 5].map((star) => (
@@ -440,7 +637,7 @@ export const YardReviewsTab: React.FC<YardReviewsTabProps> = ({
                     type="button"
                     onMouseEnter={() => setHoverRating(star)}
                     onClick={() => setRating(star)}
-                    className="w-9 h-9 rounded-xl flex items-center justify-center hover:bg-amber-50 transition-all cursor-pointer focus:outline-none"
+                    className="w-9 h-9 rounded-xl flex items-center justify-center hover:bg-amber-50 transition-colors cursor-pointer focus:outline-none shrink-0"
                     aria-label={`${star} sao`}
                   >
                     <Star
@@ -452,7 +649,7 @@ export const YardReviewsTab: React.FC<YardReviewsTabProps> = ({
                   </button>
                 ))}
               </div>
-              <div className="px-3.5 py-1.5 rounded-full bg-[#006241] text-white text-xs font-bold font-mono tracking-tight shadow-xs min-w-[170px] text-center">
+              <div className="w-[235px] h-[44px] shrink-0 px-3.5 rounded-full bg-[#006241] text-white text-xs font-bold font-mono tracking-tight shadow-xs text-center flex items-center justify-center whitespace-nowrap">
                 {STAR_LABELS[hoverRating || rating]}
               </div>
             </div>
@@ -462,8 +659,8 @@ export const YardReviewsTab: React.FC<YardReviewsTabProps> = ({
           <div className="rounded-2xl bg-[#FBF8F0] border border-[#E6E2D8] p-4 sm:p-5 space-y-3.5 focus-within:border-[#006241] focus-within:ring-2 focus-within:ring-[#006241]/20 transition-all">
             {/* Header of the comment box */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <label className="text-xs font-black uppercase tracking-wider text-[#1E3932]">
-                Nội dung nhận xét chi tiết
+              <label className="text-xs font-black uppercase tracking-wider text-[#1E3932] flex items-center gap-1">
+                Nội dung nhận xét chi tiết <span className="text-rose-500 font-bold">*</span>
               </label>
               <div className="flex items-center gap-1.5 text-[11px] text-[#6F7E72]">
                 <span className="font-semibold text-amber-700">⚡ Gợi ý nhanh:</span>
@@ -514,9 +711,10 @@ export const YardReviewsTab: React.FC<YardReviewsTabProps> = ({
             <textarea
               value={comment}
               onChange={(e) => setComment(e.target.value)}
-              placeholder="Chia sẻ nhận xét thực tế về mặt sân, ánh sáng, phòng thay đồ, nhân viên, v.v..."
+              placeholder="Chia sẻ nhận xét thực tế về mặt sân, ánh sáng, phòng thay đồ, nhân viên, v.v... (Bắt buộc)"
               rows={3}
               maxLength={600}
+              required
               className="w-full p-3.5 rounded-xl bg-white border border-[#E6E2D8] text-sm text-[#1E3932] placeholder:text-[#6F7E72]/60 focus:outline-none focus:border-[#006241] transition-all resize-none"
             />
 
@@ -607,7 +805,8 @@ export const YardReviewsTab: React.FC<YardReviewsTabProps> = ({
             </button>
           </div>
         </form>
-      </div>
+      )}
+    </div>
 
       {/* 3. Star Filter Tabs & Reviews Stream */}
       <div className="space-y-5">
@@ -742,9 +941,22 @@ export const YardReviewsTab: React.FC<YardReviewsTabProps> = ({
                       </div>
                     </div>
                   ) : (
-                    <p className="text-sm text-[#1E3932] leading-relaxed">
-                      {rev.comment || 'Khách hàng không để lại nhận xét chi tiết.'}
-                    </p>
+                    <div className="space-y-2">
+                      <p className="text-sm text-[#1E3932] leading-relaxed">
+                        {rev.comment || 'Khách hàng không để lại nhận xét chi tiết.'}
+                      </p>
+
+                      {/* Booking Play Time */}
+                      {rev.booking?.startTime && (
+                        <div className="inline-flex items-center gap-1.5 text-xs text-[#1E3932] bg-[#FBF8F0] border border-[#E6E2D8] px-3 py-1.5 rounded-xl">
+                          <Clock className="w-3.5 h-3.5 text-[#006241] shrink-0" />
+                          <span className="font-bold">Đã chơi:</span>
+                          <span className="font-mono text-[#6F7E72]">
+                            {formatBookingPlayTime(rev.booking.startTime, rev.booking.endTime)}
+                          </span>
+                        </div>
+                      )}
+                    </div>
                   )}
 
                   {/* Images Carousel / Preview */}

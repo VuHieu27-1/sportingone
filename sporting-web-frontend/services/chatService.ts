@@ -30,6 +30,12 @@ export interface ConversationItem {
   updatedAt: string;
 }
 
+export interface ChatMessagesPaginationResponse {
+  messages: ChatMessageItem[];
+  hasMore: boolean;
+  nextCursor: number | null;
+}
+
 export interface AIHealthStatus {
   status: 'healthy' | 'degraded' | 'unhealthy';
   serverReachable: boolean;
@@ -52,10 +58,47 @@ export const chatService = {
   },
 
   /**
-   * Gets message history for a conversation
+   * Gets message history for a conversation with optional cursor pagination
    */
-  async getMessages(conversationId: number): Promise<ApiResponse<ChatMessageItem[]>> {
-    return apiClient.get<ChatMessageItem[]>(`/chat/conversations/${conversationId}/messages`);
+  async getMessages(
+    conversationId: number,
+    params?: { limit?: number; before?: number },
+  ): Promise<ApiResponse<ChatMessagesPaginationResponse>> {
+    const query = new URLSearchParams();
+    if (params?.limit) query.set('limit', String(params.limit));
+    if (params?.before) query.set('before', String(params.before));
+    const qs = query.toString() ? `?${query.toString()}` : '';
+
+    const res = await apiClient.get<any>(`/chat/conversations/${conversationId}/messages${qs}`);
+    if (res.success && res.data) {
+      if (Array.isArray(res.data)) {
+        return {
+          ...res,
+          data: {
+            messages: res.data,
+            hasMore: false,
+            nextCursor: null,
+          },
+        };
+      }
+      return {
+        ...res,
+        data: {
+          messages: res.data.messages || [],
+          hasMore: Boolean(res.data.hasMore),
+          nextCursor: res.data.nextCursor ?? null,
+        },
+      };
+    }
+
+    return {
+      ...res,
+      data: {
+        messages: [],
+        hasMore: false,
+        nextCursor: null,
+      },
+    };
   },
 
   /**

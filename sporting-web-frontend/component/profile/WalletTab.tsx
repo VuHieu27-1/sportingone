@@ -156,7 +156,7 @@ export const WalletTab: React.FC = () => {
     const statusParam = params.get('status');
 
     if (orderCode) {
-      toast.loading('Đang đồng bộ giao dịch nạp xu PayOS...', { id: 'sync-payos' });
+      toast.loading('Đang đồng bộ giao dịch nạp xu...', { id: 'sync-payos' });
       try {
         const syncRes = await coinTransactionService.syncDepositStatus(orderCode);
         if (syncRes.success && (syncRes.data?.status === 'completed' || statusParam === 'success')) {
@@ -277,6 +277,18 @@ export const WalletTab: React.FC = () => {
    */
   const handleDepositSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!wallet?.bankName || !wallet?.bankNumber) {
+      toast.error(
+        'Bạn chưa liên kết ngân hàng. Vui lòng cập nhật thông tin ngân hàng trước khi nạp xu!',
+      );
+      handleCloseDepositModal();
+      setBankName(wallet?.bankName || '');
+      setBankNumber(wallet?.bankNumber || '');
+      setBankAccountName(wallet?.bankAccountName || '');
+      setBankModalOpen(true);
+      return;
+    }
+
     const val = Number(amountInput);
     if (!val || val < 10000) {
       toast.error('Số tiền nạp tối thiểu là 10.000 VNĐ (10.000 Xu).');
@@ -293,12 +305,12 @@ export const WalletTab: React.FC = () => {
         setPayosDepositData(res.data);
         setPayosStatus('PENDING');
         setPayosModalOpen(true);
-        toast.success('Khởi tạo mã VietQR thanh toán PayOS thành công!');
+        toast.success('Khởi tạo mã VietQR thanh toán thành công!');
       } else {
-        toast.error(res.message || 'Không thể tạo đơn nạp xu từ PayOS');
+        toast.error(res.message || 'Không thể tạo đơn nạp xu');
       }
     } catch (err: any) {
-      toast.error(err.message || 'Đã có lỗi xảy ra khi gọi PayOS');
+      toast.error(err.message || 'Đã có lỗi xảy ra khi khởi tạo thanh toán');
     } finally {
       setIsProcessing(false);
     }
@@ -359,8 +371,8 @@ export const WalletTab: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 font-['Plus_Jakarta_Sans',sans-serif]">
-      <div className="p-6 sm:p-8 rounded-[28px] bg-[#1E3932] text-[#FBF8F0] border border-[#006241]/40 shadow-xl relative overflow-hidden flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+    <div className="space-y-6 font-['Plus_Jakarta_Sans',sans-serif] min-w-0 max-w-full">
+      <div className="p-5 sm:p-8 rounded-[28px] bg-[#1E3932] text-[#FBF8F0] border border-[#006241]/40 shadow-xl relative overflow-hidden flex flex-col md:flex-row items-start md:items-center justify-between gap-5 sm:gap-6 min-w-0 max-w-full">
         <div className="space-y-2 relative z-10">
           <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[#006241]/40 border border-emerald-500/30 text-emerald-300 text-xs font-mono font-bold">
             <WalletIcon className="w-4 h-4 text-emerald-400" />
@@ -389,13 +401,23 @@ export const WalletTab: React.FC = () => {
         <div className="flex items-center gap-3 w-full md:w-auto relative z-10">
           <button
             onClick={() => {
+              if (!wallet?.bankName || !wallet?.bankNumber) {
+                toast.error(
+                  'Bạn chưa liên kết ngân hàng. Vui lòng cập nhật thông tin ngân hàng trước khi nạp xu!',
+                );
+                setBankName(wallet?.bankName || '');
+                setBankNumber(wallet?.bankNumber || '');
+                setBankAccountName(wallet?.bankAccountName || '');
+                setBankModalOpen(true);
+                return;
+              }
               setAmountInput('');
               setDepositModalOpen(true);
             }}
             className="flex-1 md:flex-initial inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-full bg-[#006241] hover:bg-[#007a52] text-[#FBF8F0] font-extrabold text-xs shadow-lg transition-all cursor-pointer border border-white/20"
           >
             <Plus className="w-4 h-4" />
-            <span>Nạp Xu PayOS</span>
+            <span>Nạp Xu VietQR</span>
           </button>
 
           <button
@@ -420,18 +442,18 @@ export const WalletTab: React.FC = () => {
         </div>
       </div>
 
-      <div className="p-6 sm:p-7 rounded-[28px] bg-white border border-[#E6E2D8] shadow-md space-y-5">
-        <div className="flex items-center justify-between pb-4 border-b border-[#F2F0EB]">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-[#006241]/10 flex items-center justify-center text-[#006241]">
+      <div className="p-4 sm:p-7 rounded-[28px] bg-white border border-[#E6E2D8] shadow-md space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-[#F2F0EB]">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-full bg-[#006241]/10 flex items-center justify-center text-[#006241] shrink-0">
               <Building2 className="w-5 h-5" />
             </div>
-            <div>
-              <h3 className="font-extrabold text-[#1E3932] text-base">
+            <div className="min-w-0">
+              <h3 className="font-extrabold text-[#1E3932] text-sm sm:text-base truncate">
                 Tài Khoản Ngân Hàng Liên Kết
               </h3>
-              <p className="text-xs text-[#6F7E72] font-medium">
-                Tài khoản dùng cho dịch vụ nạp/rút xu và chuyển khoản chi hộ VietQR
+              <p className="text-xs text-[#6F7E72] font-medium truncate">
+                Dùng cho dịch vụ nạp/rút xu và chuyển khoản VietQR
               </p>
             </div>
           </div>
@@ -443,7 +465,7 @@ export const WalletTab: React.FC = () => {
               setBankAccountName(wallet?.bankAccountName || '');
               setBankModalOpen(true);
             }}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#F2F0EB] hover:bg-[#E6E2D8] text-[#1E3932] font-extrabold text-xs transition-all cursor-pointer border border-[#E6E2D8]"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-full bg-[#F2F0EB] hover:bg-[#E6E2D8] text-[#1E3932] font-extrabold text-xs transition-all cursor-pointer border border-[#E6E2D8] shrink-0"
           >
             <Edit3 className="w-3.5 h-3.5 text-[#006241]" />
             <span>
@@ -455,28 +477,28 @@ export const WalletTab: React.FC = () => {
         </div>
 
         {wallet?.bankName && wallet?.bankNumber ? (
-          <div className="p-5 rounded-2xl bg-[#FBF8F0] border border-[#E6E2D8] flex items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-[#1E3932] text-white flex items-center justify-center font-black text-lg shadow-md shrink-0 border border-[#006241]">
-                <CreditCard className="w-6 h-6 text-emerald-400" />
+          <div className="p-4 sm:p-5 rounded-2xl bg-[#FBF8F0] border border-[#E6E2D8] flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+              <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-[#1E3932] text-white flex items-center justify-center font-black text-lg shadow-md shrink-0 border border-[#006241]">
+                <CreditCard className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-400" />
               </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-black text-[#1E3932] text-base">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-black text-[#1E3932] text-sm sm:text-base truncate">
                     {wallet.bankName}
                   </span>
-                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold">
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] sm:text-[11px] font-bold shrink-0">
                     <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                     Đã liên kết
                   </span>
                 </div>
                 {wallet.bankAccountName && (
-                  <p className="text-xs font-bold text-[#1E3932] uppercase mt-0.5 tracking-wide">
+                  <p className="text-xs font-bold text-[#1E3932] uppercase mt-0.5 tracking-wide truncate">
                     Chủ tài khoản:{' '}
                     <span className="font-black text-[#006241]">{wallet.bankAccountName}</span>
                   </p>
                 )}
-                <p className="text-xs font-mono font-bold text-[#6F7E72] mt-0.5 tracking-wider">
+                <p className="text-xs font-mono font-bold text-[#6F7E72] mt-0.5 tracking-wider truncate">
                   Số tài khoản:{' '}
                   <span className="text-[#1E3932] font-extrabold">
                     {wallet.bankNumber}
@@ -486,10 +508,10 @@ export const WalletTab: React.FC = () => {
             </div>
           </div>
         ) : (
-          <div className="p-5 rounded-2xl bg-amber-50 border border-amber-200/70 text-amber-900 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
+          <div className="p-4 sm:p-5 rounded-2xl bg-amber-50 border border-amber-200/70 text-amber-900 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3 min-w-0">
               <ShieldCheck className="w-6 h-6 text-amber-600 shrink-0" />
-              <div>
+              <div className="min-w-0">
                 <h4 className="font-extrabold text-sm">
                   Chưa liên kết tài khoản ngân hàng
                 </h4>
@@ -503,17 +525,17 @@ export const WalletTab: React.FC = () => {
         )}
       </div>
 
-      <div className="p-6 sm:p-7 rounded-[28px] bg-white border border-[#E6E2D8] shadow-md space-y-5">
+      <div className="p-4 sm:p-7 rounded-[28px] bg-white border border-[#E6E2D8] shadow-md space-y-5">
         <div className="flex items-center justify-between pb-4 border-b border-[#F2F0EB]">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-full bg-[#006241]/10 flex items-center justify-center text-[#006241]">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-full bg-[#006241]/10 flex items-center justify-center text-[#006241] shrink-0">
               <History className="w-4 h-4" />
             </div>
-            <h3 className="font-extrabold text-[#1E3932] text-base">
+            <h3 className="font-extrabold text-[#1E3932] text-sm sm:text-base truncate">
               Lịch Sử Giao Dịch Ví
             </h3>
           </div>
-          <span className="text-xs font-mono font-bold text-[#6F7E72]">
+          <span className="text-xs font-mono font-bold text-[#6F7E72] shrink-0">
             {transactions.length} Giao dịch
           </span>
         </div>
@@ -532,31 +554,31 @@ export const WalletTab: React.FC = () => {
             transactions.map((tx) => (
               <div
                 key={tx.id}
-                className="py-4 flex items-center justify-between gap-4 first:pt-0 last:pb-0"
+                className="py-3.5 sm:py-4 flex items-center justify-between gap-3 sm:gap-4 first:pt-0 last:pb-0"
               >
-                <div className="flex items-center gap-3.5">
+                <div className="flex items-center gap-3 sm:gap-3.5 min-w-0 flex-1">
                   <div
-                    className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${tx.type === 'deposit' || tx.type === 'refund'
+                    className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center shrink-0 ${tx.type === 'deposit' || tx.type === 'refund'
                       ? 'bg-emerald-500/10 text-emerald-700'
                       : 'bg-rose-500/10 text-rose-700'
                       }`}
                   >
                     {tx.type === 'deposit' || tx.type === 'refund' ? (
-                      <ArrowDownRight className="w-5 h-5" />
+                      <ArrowDownRight className="w-4 h-4 sm:w-5 sm:h-5" />
                     ) : (
-                      <ArrowUpRight className="w-5 h-5" />
+                      <ArrowUpRight className="w-4 h-4 sm:w-5 sm:h-5" />
                     )}
                   </div>
-                  <div>
-                    <h4 className="font-extrabold text-[#1E3932] text-sm leading-snug">
+                  <div className="min-w-0 flex-1">
+                    <h4 className="font-extrabold text-[#1E3932] text-xs sm:text-sm leading-snug line-clamp-2">
                       {tx.description ||
                         (tx.type === 'deposit'
                           ? 'Nạp Xu vào ví'
                           : 'Rút / Thanh toán Xu')}
                     </h4>
-                    <div className="flex items-center gap-3 mt-1 text-xs text-[#6F7E72] font-mono">
-                      <span>Mã GD: #{tx.transactionCode || tx.id}</span>
-                      <span>·</span>
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5 text-[10px] sm:text-xs text-[#6F7E72] font-mono">
+                      <span className="truncate max-w-[140px] sm:max-w-none">Mã GD: #{tx.transactionCode || tx.id}</span>
+                      <span className="hidden sm:inline">·</span>
                       <span>
                         {new Date(tx.createdAt).toLocaleString('vi-VN')}
                       </span>
@@ -564,9 +586,9 @@ export const WalletTab: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="text-right">
+                <div className="text-right shrink-0">
                   <span
-                    className={`text-base font-black font-mono block ${tx.type === 'deposit' || tx.type === 'refund'
+                    className={`text-sm sm:text-base font-black font-mono block whitespace-nowrap ${tx.type === 'deposit' || tx.type === 'refund'
                       ? 'text-emerald-700'
                       : 'text-slate-900'
                       }`}
@@ -578,7 +600,7 @@ export const WalletTab: React.FC = () => {
                   </span>
 
                   <span
-                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full inline-block mt-0.5 ${tx.status === 'completed'
+                    className={`text-[9px] sm:text-[10px] font-bold px-2 py-0.5 rounded-full inline-block mt-0.5 whitespace-nowrap ${tx.status === 'completed'
                       ? 'bg-emerald-100 text-emerald-800'
                       : tx.status === 'pending'
                         ? 'bg-amber-100 text-amber-800'
@@ -616,6 +638,21 @@ export const WalletTab: React.FC = () => {
             </div>
 
             <form onSubmit={handleDepositSubmit} className="p-6 space-y-4 text-left">
+              {/* Linked Bank Info Banner */}
+              {wallet?.bankName && wallet?.bankNumber ? (
+                <div className="flex items-center gap-2.5 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-[#006241] text-xs">
+                  <Building2 className="w-4 h-4 shrink-0" />
+                  <div className="min-w-0">
+                    <span className="font-bold block text-[10px] uppercase tracking-wider text-[#006241]">
+                      Tài khoản ngân hàng liên kết:
+                    </span>
+                    <span className="text-xs text-[#1E3932] truncate font-mono font-extrabold">
+                      {wallet.bankName} - {wallet.bankNumber}
+                    </span>
+                  </div>
+                </div>
+              ) : null}
+
               <div>
                 <label className="block text-xs font-bold text-[#1E3932] mb-1">
                   Số Xu cần nạp (1 Xu = 1 VNĐ)
@@ -630,11 +667,11 @@ export const WalletTab: React.FC = () => {
                   className="w-full px-4 py-3 rounded-xl bg-white border border-[#E6E2D8] text-base font-extrabold text-[#006241] focus:outline-none focus:ring-2 focus:ring-[#006241]"
                 />
                 <p className="text-[11px] text-[#6F7E72] mt-1 font-medium">
-                  Nạp tối thiểu 10.000 Xu. Bạn có thể thanh toán trực tiếp qua chuyển khoản VietQR PayOS.
+                  Nạp tối thiểu 10.000 Xu. Bạn có thể thanh toán trực tiếp qua chuyển khoản VietQR.
                 </p>
               </div>
 
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {[50000, 100000, 200000, 500000, 1000000, 2000000].map((preset) => (
                   <button
                     key={preset}
@@ -650,7 +687,7 @@ export const WalletTab: React.FC = () => {
               <div className="p-3.5 rounded-2xl bg-[#006241]/10 border border-[#006241]/20 text-xs text-[#1E3932] font-semibold flex items-center gap-2">
                 <ShieldCheck className="w-4 h-4 text-[#006241] shrink-0" />
                 <span>
-                  Hệ thống sẽ khởi tạo mã VietQR PayOS trực tiếp để bạn quét mã thanh toán.
+                  Hệ thống sẽ khởi tạo mã VietQR trực tiếp để bạn quét mã thanh toán.
                 </span>
               </div>
 
@@ -691,7 +728,7 @@ export const WalletTab: React.FC = () => {
                 </div>
                 <div>
                   <h2 className="text-sm font-extrabold text-[#1E3932] tracking-tight">
-                    Thanh Toán Nạp Xu - VietQR PayOS
+                    Thanh Toán Nạp Xu - VietQR
                   </h2>
                 </div>
               </div>
@@ -736,7 +773,7 @@ export const WalletTab: React.FC = () => {
                         payosDepositData.description || `Nap xu #${payosDepositData.orderCode}`,
                         payosDepositData.accountName || 'SPORTING ONE',
                       )}
-                      alt="VietQR PayOS Nạp Xu"
+                      alt="VietQR Nạp Xu"
                       className="w-full h-auto object-contain rounded-md max-h-[240px]"
                     />
                   </div>

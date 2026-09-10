@@ -8,6 +8,7 @@ interface SubVendorListProps {
   vendorRevenues: Record<number, number>;
   selectedVendor: BackendVendor | null;
   onSelectVendor: (vendor: BackendVendor) => void;
+  onManageYards?: (vendor: BackendVendor) => void;
   onEditVendor: (vendor: BackendVendor) => void;
   onDesignVendor?: (vendor: BackendVendor) => void;
   onAddVendor: () => void;
@@ -18,6 +19,7 @@ export const SubVendorList: React.FC<SubVendorListProps> = ({
   vendorRevenues,
   selectedVendor,
   onSelectVendor,
+  onManageYards,
   onEditVendor,
   onDesignVendor,
   onAddVendor,
@@ -101,7 +103,11 @@ export const SubVendorList: React.FC<SubVendorListProps> = ({
               key={vendor.id}
               onClick={() => {
                 if (vendor.status === 'active') {
-                  onSelectVendor(vendor);
+                  if (onManageYards) {
+                    onManageYards(vendor);
+                  } else {
+                    onSelectVendor(vendor);
+                  }
                 }
               }}
               className={`p-5 rounded-[24px] border transition-all flex flex-col justify-between cursor-pointer ${isSelected
@@ -167,7 +173,11 @@ export const SubVendorList: React.FC<SubVendorListProps> = ({
                   onClick={(e) => {
                     e.stopPropagation();
                     if (vendor.status === 'active') {
-                      onSelectVendor(vendor);
+                      if (onManageYards) {
+                        onManageYards(vendor);
+                      } else {
+                        onSelectVendor(vendor);
+                      }
                     }
                   }}
                   disabled={vendor.status !== 'active'}

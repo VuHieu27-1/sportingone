@@ -200,7 +200,7 @@ export const PayOSPaymentModal: React.FC<PayOSPaymentModalProps> = ({
                   <div className="p-2.5 bg-white rounded-xl border border-slate-200/80 shadow-sm w-full max-w-[240px]">
                     <img
                       src={qrImageSrc}
-                      alt="VietQR PayOS"
+                      alt="VietQR"
                       className="w-full h-auto object-contain rounded-md max-h-[240px]"
                     />
                   </div>

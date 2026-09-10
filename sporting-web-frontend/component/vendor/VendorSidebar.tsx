@@ -79,8 +79,8 @@ export const VendorSidebar: React.FC<VendorSidebarProps> = ({
 
   const renderSidebarContent = (isMobile = false) => (
     <>
-      <div>
-        <div className="p-5 sm:p-6 border-b border-[#E6E2D8] flex items-center justify-between bg-white/40">
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        <div className="p-5 sm:p-6 border-b border-[#E6E2D8] flex items-center justify-between bg-white/40 shrink-0">
           <div
             onClick={() => {
               setActiveTab('dashboard');
@@ -114,7 +114,7 @@ export const VendorSidebar: React.FC<VendorSidebarProps> = ({
           )}
         </div>
 
-        <nav className="p-4 space-y-1.5">
+        <nav className="p-4 space-y-1.5 flex-1 overflow-y-auto custom-scrollbar">
           <div className="text-[10px] font-mono font-extrabold text-[#6F7E72] uppercase tracking-wider px-3 mb-3">
             MENU QUẢN TRỊ
           </div>
@@ -164,24 +164,31 @@ export const VendorSidebar: React.FC<VendorSidebarProps> = ({
         </nav>
       </div>
 
-      <div className="p-3.5 m-3 rounded-[24px] bg-white border border-[#E6E2D8] shadow-sm space-y-3 relative">
+      <div className="p-3.5 m-3 rounded-[24px] bg-white border border-[#E6E2D8] shadow-sm space-y-3 relative shrink-0">
         <button
           onClick={() => setAccountMenuOpen(!accountMenuOpen)}
           className="w-full flex items-center justify-between gap-3 p-2 rounded-2xl hover:bg-[#F2F0EB]/60 transition-all cursor-pointer text-left"
           title="Bấm để chuyển đổi tài khoản"
         >
           <div className="flex items-center gap-3 min-w-0 flex-1">
-            {activeAvatar ? (
+            {activeAvatar && (
               <img
                 src={activeAvatar}
                 alt={displayName}
                 className="w-10 h-10 rounded-full object-cover shadow-sm shrink-0 border-2 border-[#FBF8F0]"
+                onError={(e) => {
+                  (e.currentTarget as HTMLElement).style.display = 'none';
+                  const fb = e.currentTarget.nextElementSibling as HTMLElement;
+                  if (fb) fb.style.display = 'flex';
+                }}
               />
-            ) : (
-              <div className="w-10 h-10 rounded-full bg-[#006241] flex items-center justify-center text-sm font-black text-white shadow-sm shrink-0 border-2 border-[#FBF8F0]">
-                {avatarLetter}
-              </div>
             )}
+            <div
+              style={{ display: activeAvatar ? 'none' : 'flex' }}
+              className="w-10 h-10 rounded-full bg-[#006241] items-center justify-center text-sm font-black text-white shadow-sm shrink-0 border-2 border-[#FBF8F0]"
+            >
+              {avatarLetter}
+            </div>
             <div className="min-w-0 flex-1 space-y-0.5">
               <div className="text-xs font-extrabold text-[#1E3932] truncate leading-tight">
                 {displayName}
@@ -309,7 +316,7 @@ export const VendorSidebar: React.FC<VendorSidebarProps> = ({
   return (
     <>
       {/* Desktop Persistent Sidebar */}
-      <aside className="hidden lg:flex lg:w-72 bg-[#FBF8F0] border-r border-[#E6E2D8] flex-col justify-between shrink-0 font-['Plus_Jakarta_Sans',sans-serif] min-h-screen selection:bg-[#006241] selection:text-white">
+      <aside className="hidden lg:flex lg:w-72 bg-[#FBF8F0] border-r border-[#E6E2D8] flex-col justify-between shrink-0 font-['Plus_Jakarta_Sans',sans-serif] h-screen sticky top-0 self-start overflow-hidden selection:bg-[#006241] selection:text-white">
         {renderSidebarContent(false)}
       </aside>
 
@@ -320,7 +327,7 @@ export const VendorSidebar: React.FC<VendorSidebarProps> = ({
             className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity animate-fade-in"
             onClick={onCloseMobile}
           />
-          <div className="relative w-72 max-w-[85vw] h-full bg-[#FBF8F0] border-r border-[#E6E2D8] shadow-2xl flex flex-col justify-between overflow-y-auto animate-in slide-in-from-left duration-200">
+          <div className="relative w-72 max-w-[85vw] h-full bg-[#FBF8F0] border-r border-[#E6E2D8] shadow-2xl flex flex-col justify-between overflow-hidden animate-in slide-in-from-left duration-200">
             {renderSidebarContent(true)}
           </div>
         </div>

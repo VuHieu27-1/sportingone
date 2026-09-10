@@ -1249,7 +1249,7 @@ export class BookingsService {
 
     const booking = await this.repository.findOne({
       where: { id: bookingId },
-      relations: { yard: { vendor: true }, user: { detailUser: true } },
+      relations: { yard: { vendor: true, sportType: true, typeYard: true }, user: { detailUser: true } },
       withDeleted: true,
     });
 
@@ -1300,10 +1300,12 @@ export class BookingsService {
         yardName: booking.yard?.yardName,
         vendorName: booking.yard?.vendor?.vendorName,
         vendorAddress: booking.yard?.vendor?.vendorAddress,
+        sportName: booking.yard?.sportType?.sportName || 'Thể thao',
+        typeName: booking.yard?.typeYard?.typeName || 'Sân tiêu chuẩn',
         username: booking.user?.username,
         email: booking.user?.email,
-        phone: booking.user?.detailUser?.phone || '',
-        userPhone: booking.user?.detailUser?.phone || '',
+        phone: booking.user?.detailUser?.phone || (booking.user as any)?.phone || '',
+        userPhone: booking.user?.detailUser?.phone || (booking.user as any)?.phone || '',
         startTime: booking.startTime,
         endTime: booking.endTime,
         priced: booking.priced,

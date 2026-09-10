@@ -225,9 +225,9 @@ export class PayOSService {
 
       let userFriendlyMsg = rawMsg;
       if (rawMsg.includes('423') || rawMsg.includes('VietQR Pro thất bại')) {
-        userFriendlyMsg = 'Cổng VietQR PayOS thông báo: Kênh ngân hàng liên kết hoặc gói giao dịch PayOS chưa sẵn sàng (Mã lỗi 423). Vui lòng kiểm tra kênh thanh toán trên my.payos.vn hoặc chọn phương thức Thanh toán bằng Xu trong Ví!';
+        userFriendlyMsg = 'Cổng VietQR thông báo: Kênh ngân hàng liên kết chưa sẵn sàng (Mã lỗi 423). Vui lòng thử lại sau hoặc chọn phương thức Thanh toán bằng Xu trong Ví!';
       } else if (rawMsg.includes('401') || rawMsg.includes('API key')) {
-        userFriendlyMsg = 'Cấu hình API Key/Client ID của PayOS không hợp lệ. Vui lòng kiểm tra tệp cấu hình .env!';
+        userFriendlyMsg = 'Cấu hình cổng thanh toán chưa hợp lệ. Vui lòng liên hệ quản trị viên!';
       }
 
       throw new BadRequestException(userFriendlyMsg);

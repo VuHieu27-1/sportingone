@@ -48,7 +48,13 @@ export class WalletsService {
    * Retrieves All information.
    */
   async findAll() {
-    return this.walletRepository.find({ relations: { user: true } });
+    const wallets = await this.walletRepository.find({ relations: { user: true } });
+    for (const wallet of wallets) {
+      if (wallet.user) {
+        delete (wallet.user as Partial<User>).password;
+      }
+    }
+    return wallets;
   }
 
   /**
@@ -62,6 +68,9 @@ export class WalletsService {
     if (!wallet) {
       throw new NotFoundException(`Wallet with ID ${id} not found`);
     }
+    if (wallet.user) {
+      delete (wallet.user as Partial<User>).password;
+    }
     return wallet;
   }
 
@@ -73,7 +82,9 @@ export class WalletsService {
       where: { userId },
       relations: { user: true },
     });
-    delete (wallet?.user as Partial<User>).password;
+    if (wallet?.user) {
+      delete (wallet.user as Partial<User>).password;
+    }
     return wallet;
   }
 

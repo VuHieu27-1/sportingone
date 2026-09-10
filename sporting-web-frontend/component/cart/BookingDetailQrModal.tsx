@@ -166,43 +166,44 @@ export const BookingDetailQrModal: React.FC<BookingDetailQrModalProps> = ({
             />
           </div>
 
-          {/* Actions: View Verify Page, Download, Copy */}
+          {/* Actions: View Verify Page, Download PNG, Copy */}
           <div className="flex flex-wrap items-center justify-center gap-2">
+
             <button
               type="button"
               tabIndex={2}
               onClick={handleViewVerifyPage}
-              className="px-4 py-2 rounded-full bg-[#006241] hover:bg-[#1E3932] text-white text-xs font-extrabold transition-all flex items-center gap-2 cursor-pointer shadow-md border border-[#006241]"
+              className="px-3.5 py-2 rounded-full bg-[#1E3932] hover:bg-[#006241] text-white text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm border border-[#1E3932]"
             >
               <ExternalLink className="w-3.5 h-3.5 text-emerald-300" />
-              <span>Xem Xác Thực QR</span>
+              <span>Xem Xác Thực</span>
             </button>
 
             <button
               type="button"
               tabIndex={2}
               onClick={() => downloadQrTicketImage(booking, verifyUrl, qrImageUrl)}
-              className="px-4 py-2 rounded-full bg-[#1E3932] hover:bg-[#006241] text-white text-xs font-bold transition-all flex items-center gap-2 cursor-pointer border border-[#1E3932]"
+              className="px-3.5 py-2 rounded-full bg-[#F2F0EB] hover:bg-[#E6E2D8] text-[#1E3932] text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border border-[#E6E2D8]"
             >
-              <Download className="w-3.5 h-3.5 text-emerald-300" />
-              <span>Tải Thẻ QR (PNG)</span>
+              <Download className="w-3.5 h-3.5 text-[#006241]" />
+              <span>Tải Ảnh (PNG)</span>
             </button>
 
             <button
               type="button"
               tabIndex={2}
               onClick={handleCopyLink}
-              className="px-4 py-2 rounded-full bg-[#F2F0EB] hover:bg-[#E6E2D8] text-[#1E3932] text-xs font-bold transition-all flex items-center gap-2 cursor-pointer border border-[#E6E2D8]"
+              className="px-3.5 py-2 rounded-full bg-[#F2F0EB] hover:bg-[#E6E2D8] text-[#1E3932] text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border border-[#E6E2D8]"
             >
               {isCopied ? (
                 <>
                   <Check className="w-3.5 h-3.5 text-emerald-600" />
-                  <span className="text-emerald-700">Đã Sao Chép Link</span>
+                  <span className="text-emerald-700">Đã Sao Chép</span>
                 </>
               ) : (
                 <>
                   <Copy className="w-3.5 h-3.5 text-[#006241]" />
-                  <span>Sao Chép Link QR</span>
+                  <span>Sao Chép Link</span>
                 </>
               )}
             </button>

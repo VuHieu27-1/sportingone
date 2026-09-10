@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { User, Store, Wallet, Settings, HelpCircle, ArrowLeft, LogOut, ChevronRight, CheckCircle2, Shield, ChevronDown, ShoppingBag, UserPlus, Trash2, Coins, Calendar, Camera, Loader2, X, ExternalLink } from 'lucide-react';
+import { User, Store, Wallet, Settings, HelpCircle, ArrowLeft, LogOut, ChevronRight, CheckCircle2, Shield, ChevronDown, ShoppingBag, UserPlus, Trash2, Coins, Calendar, Camera, Loader2, X, ExternalLink, Search, Heart, Bell, BellOff, CheckCheck } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { AuthUser } from '../types/auth';
 import { UserProfileDetails, userProfileService, accountAvatarCache } from '../services/userProfileService';
@@ -10,11 +10,12 @@ import { socketService } from '../services/socketService';
 import { ProfileInfoTab } from '../component/profile/ProfileInfoTab';
 import { VendorManagementTab } from '../component/profile/VendorManagementTab';
 import { WalletTab } from '../component/profile/WalletTab';
-import { BookedYardsTab } from '../component/profile/BookedYardsTab';
+import { BookedYardsTab, evaluateBookedYardsList } from '../component/profile/BookedYardsTab';
 import { tokenManager } from '../utils/tokenManager';
 import { useAccounts } from '../hooks/useAccounts';
 import { bookingService } from '../services/bookingService';
 import { SUPPORT_PHONE, SUPPORT_EMAIL } from '../utils/appConfig';
+import { notificationService, UserNotificationItem } from '../services/notificationService';
 
 interface UserProfilePageProps {
   currentUser: AuthUser | null;
@@ -43,13 +44,74 @@ export const UserProfilePage: React.FC<UserProfilePageProps> = ({ currentUser, o
   };
 
   const [activeTab, setActiveTabState] = useState<ProfileTabKey>(getInitialTab);
-  const [profile, setProfile] = useState<UserProfileDetails | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [profile, setProfile] = useState<UserProfileDetails | null>(() => userProfileService.getCachedProfile());
+  const [isLoading, setIsLoading] = useState<boolean>(() => !userProfileService.getCachedProfile());
   const [walletBalance, setWalletBalance] = useState<number>(0);
   const [isLoadingWallet, setIsLoadingWallet] = useState<boolean>(false);
   const [upcomingBookingsCount, setUpcomingBookingsCount] = useState<number>(0);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
+
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchKeyword, setSearchKeyword] = useState('');
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [notifications, setNotifications] = useState<UserNotificationItem[]>([]);
+  const [isLoadingNotifs, setIsLoadingNotifs] = useState(false);
+  const [selectedNotifDetail, setSelectedNotifDetail] = useState<UserNotificationItem | null>(null);
+  const searchRef = useRef<HTMLDivElement>(null);
+  const notifRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const unreadCount = notifications.filter((n) => n.status !== 'read').length;
+
+  const fetchNotifications = useCallback(async () => {
+    const userId = currentUser?.id ? Number(currentUser.id) : null;
+    if (!userId) return;
+    try {
+      setIsLoadingNotifs(true);
+      const data = await notificationService.getUserNotifications(userId);
+      setNotifications(data || []);
+    } catch {
+    } finally {
+      setIsLoadingNotifs(false);
+    }
+  }, [currentUser?.id]);
+
+  useEffect(() => {
+    if (currentUser?.id) {
+      fetchNotifications();
+      const interval = setInterval(fetchNotifications, 20000);
+      return () => clearInterval(interval);
+    }
+  }, [fetchNotifications, currentUser?.id]);
+
+  const handleNotifClick = async (item: UserNotificationItem) => {
+    setNotifOpen(false);
+    setSelectedNotifDetail(item);
+    if (item.status !== 'read') {
+      setNotifications((prev) => prev.map((n) => (n.id === item.id ? { ...n, status: 'read' } : n)));
+      try { await notificationService.markAsRead(item.id); } catch {}
+    }
+  };
+
+  const handleMarkAllRead = async () => {
+    const userId = currentUser?.id ? Number(currentUser.id) : null;
+    if (!userId) return;
+    setNotifications((prev) => prev.map((n) => ({ ...n, status: 'read' })));
+    try { await notificationService.markAllAsRead(userId); toast.success('Đã đánh dấu tất cả là đã đọc!'); } catch {}
+  };
+
+  useEffect(() => {
+    if (searchOpen) setTimeout(() => searchInputRef.current?.focus(), 50);
+  }, [searchOpen]);
+
+  useEffect(() => {
+    if (selectedNotifDetail) {
+      document.body.style.overflow = 'hidden';
+      const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setSelectedNotifDetail(null); };
+      window.addEventListener('keydown', handler);
+      return () => { document.body.style.overflow = 'unset'; window.removeEventListener('keydown', handler); };
+    }
+  }, [selectedNotifDetail]);
 
   const fetchUpcomingCount = useCallback(async () => {
     const token = tokenManager.getActiveToken();
@@ -60,27 +122,17 @@ export const UserProfilePage: React.FC<UserProfilePageProps> = ({ currentUser, o
         bookingService.fetchMyBookingsMonth(),
       ]);
 
-      const now = new Date().getTime();
-      let dailyCount = 0;
-      let monthlyCount = 0;
+      const dailyList = (resDaily.success && Array.isArray(resDaily.data) ? resDaily.data : []).map((b) => ({
+        ...b,
+        itemType: 'hourly',
+      }));
+      const monthlyList = (resMonthly.success && Array.isArray(resMonthly.data) ? resMonthly.data : []).map((bm) => ({
+        ...bm,
+        itemType: 'monthly',
+      }));
 
-      if (resDaily.success && Array.isArray(resDaily.data)) {
-        dailyCount = resDaily.data.filter((b) => {
-          if (b.status !== 'paid') return false;
-          const start = new Date(b.startTime).getTime();
-          return !isNaN(start) && start > now;
-        }).length;
-      }
-
-      if (resMonthly.success && Array.isArray(resMonthly.data)) {
-        monthlyCount = resMonthly.data.filter((bm) => {
-          if (bm.status !== 'paid') return false;
-          const end = new Date(bm.endDate ? `${String(bm.endDate).split('T')[0]}T${bm.endTime || '23:59'}:00` : bm.createdAt).getTime();
-          return !isNaN(end) && end > now;
-        }).length;
-      }
-
-      setUpcomingBookingsCount(dailyCount + monthlyCount);
+      const { upcomingCount } = evaluateBookedYardsList([...dailyList, ...monthlyList] as any, new Date());
+      setUpcomingBookingsCount(upcomingCount);
     } catch { }
   }, []);
 
@@ -134,13 +186,10 @@ export const UserProfilePage: React.FC<UserProfilePageProps> = ({ currentUser, o
   }, [isPreviewAvatarOpen]);
 
   useEffect(() => {
-    /**
-     * Handles event processing for handleClickOutside.
-     */
     const handleClickOutside = (e: MouseEvent) => {
-      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
-        setUserMenuOpen(false);
-      }
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) setUserMenuOpen(false);
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) setSearchOpen(false);
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) setNotifOpen(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -150,14 +199,18 @@ export const UserProfilePage: React.FC<UserProfilePageProps> = ({ currentUser, o
    * Executes load Profile Data operation.
    */
   const loadProfileData = async () => {
-    setIsLoading(true);
+    if (!userProfileService.getCachedProfile() && !profile) {
+      setIsLoading(true);
+    }
     try {
       const res = await userProfileService.fetchProfileFromApi();
       if (res.success && res.data) {
         setProfile(res.data);
       }
     } catch {
-      toast.error('Không thể tải thông tin hồ sơ người dùng.');
+      if (!profile) {
+        toast.error('Không thể tải thông tin hồ sơ người dùng.');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -165,7 +218,7 @@ export const UserProfilePage: React.FC<UserProfilePageProps> = ({ currentUser, o
 
   useEffect(() => {
     loadProfileData();
-  }, [currentUser?.username, currentUser?.id]);
+  }, [currentUser?.username]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
@@ -240,20 +293,20 @@ export const UserProfilePage: React.FC<UserProfilePageProps> = ({ currentUser, o
 
   return (
     <div className="min-h-screen bg-[#F2F0EB] text-[#1E3932] font-['Plus_Jakarta_Sans',sans-serif] flex flex-col">
-      <header className="bg-[#1E3932] text-[#FBF8F0] border-b border-[#006241]/30 sticky top-0 z-40 shadow-md">
-        <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-10 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-5 lg:gap-7">
-            <div className="flex items-center gap-4">
+      <header className="bg-[#1E3932] text-[#FBF8F0] border-b border-[#006241]/30 sticky top-0 z-40 shadow-md w-full">
+        <div className="max-w-[1440px] w-full mx-auto px-4 sm:px-6 lg:px-10 h-16 flex items-center justify-between min-w-0">
+          <div className="flex items-center gap-3 sm:gap-5 lg:gap-7 min-w-0">
+            <div className="flex items-center gap-2 sm:gap-4 min-w-0">
               <button
                 onClick={() => navigate('/user')}
-                className="flex items-center gap-1.5 text-xs font-bold text-[#FBF8F0] hover:text-white transition-colors cursor-pointer"
+                className="flex items-center gap-1.5 text-xs font-bold text-[#FBF8F0] hover:text-white transition-colors cursor-pointer shrink-0"
               >
                 <ArrowLeft className="w-4 h-4 shrink-0" />
                 <span className="hidden sm:inline">Quay lại Trang Chủ</span>
                 <span className="sm:hidden">Trang Chủ</span>
               </button>
               <span className="text-[#A3B1A8] text-xs font-mono hidden sm:inline">|</span>
-              <span className="text-xs font-mono font-bold text-emerald-300 hidden sm:inline uppercase tracking-wider">
+              <span className="text-xs font-mono font-bold text-emerald-300 hidden sm:inline uppercase tracking-wider truncate">
                 SPORTING ONE PLATFORM
               </span>
             </div>
@@ -291,7 +344,119 @@ export const UserProfilePage: React.FC<UserProfilePageProps> = ({ currentUser, o
             </div>
           </div>
 
-          <div className="relative" ref={userMenuRef}>
+          {/* Right side: action icons + user menu — grouped together like DashboardNavbar */}
+          <div className="flex items-center gap-2.5 shrink-0">
+          {/* Action icon buttons */}
+          <div className="flex items-center gap-1.5">
+            {/* Cart */}
+            <button
+              onClick={() => navigate('/cart')}
+              className="flex w-9 h-9 items-center justify-center rounded-full text-[#A3B1A8] hover:text-white hover:bg-white/10 transition-all cursor-pointer"
+              aria-label="Giỏ hàng"
+              title="Giỏ hàng & Đặt sân"
+            >
+              <ShoppingBag className="w-4 h-4" />
+            </button>
+
+            {/* Wishlist */}
+            <button
+              className="hidden sm:flex w-9 h-9 items-center justify-center rounded-full text-[#A3B1A8] hover:text-white hover:bg-white/10 transition-all cursor-pointer"
+              aria-label="Yêu thích"
+            >
+              <Heart className="w-4 h-4" />
+            </button>
+
+            {/* Bell */}
+            {currentUser && (
+              <div className="relative" ref={notifRef}>
+                <button
+                  onClick={() => { const next = !notifOpen; setNotifOpen(next); setUserMenuOpen(false); setSearchOpen(false); if (next) fetchNotifications(); }}
+                  className={`flex w-9 h-9 items-center justify-center rounded-full transition-all cursor-pointer relative ${
+                    notifOpen ? 'text-white bg-white/20' : 'text-[#A3B1A8] hover:text-white hover:bg-white/10'
+                  }`}
+                  aria-label="Thông báo"
+                  title="Thông báo của bạn"
+                >
+                  <Bell className="w-4 h-4" />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 min-w-[17px] h-[17px] px-1 rounded-full bg-rose-500 text-white text-[9px] font-black flex items-center justify-center border-2 border-[#1E3932] animate-pulse shadow-sm">
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </span>
+                  )}
+                </button>
+                {notifOpen && (
+                  <div className="absolute right-0 top-full mt-3 w-[min(calc(100vw-1.5rem),24rem)] bg-[#FBF8F0] border border-[#E6E2D8] rounded-[24px] shadow-2xl overflow-hidden z-50 text-[#1E3932]">
+                    <div className="p-4 border-b border-[#E6E2D8] bg-[#F2F0EB] flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-xl bg-[#006241]/10 text-[#006241] flex items-center justify-center shrink-0">
+                          <Bell className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <h3 className="font-extrabold text-xs text-[#1E3932]">Thông Báo Của Bạn</h3>
+                          <p className="text-[10px] text-[#6F7E72] font-medium">
+                            {unreadCount > 0 ? `${unreadCount} thông báo mới chưa đọc` : 'Tất cả đã đọc'}
+                          </p>
+                        </div>
+                      </div>
+                      {unreadCount > 0 && (
+                        <button onClick={handleMarkAllRead} className="inline-flex items-center gap-1 text-[11px] font-bold text-[#006241] hover:underline cursor-pointer" title="Đánh dấu tất cả đã đọc">
+                          <CheckCheck className="w-3.5 h-3.5" />
+                          <span>Đã đọc hết</span>
+                        </button>
+                      )}
+                    </div>
+                    <div className="max-h-80 overflow-y-auto divide-y divide-[#F2F0EB] custom-scrollbar">
+                      {isLoadingNotifs ? (
+                        <div className="py-8 text-center text-xs text-[#6F7E72] font-medium">Đang tải thông báo...</div>
+                      ) : notifications.length === 0 ? (
+                        <div className="py-10 text-center px-4 space-y-2">
+                          <div className="w-10 h-10 rounded-full bg-[#E6E2D8]/60 text-[#6F7E72] flex items-center justify-center mx-auto">
+                            <BellOff className="w-5 h-5" />
+                          </div>
+                          <p className="text-xs font-bold text-[#1E3932]">Chưa có thông báo nào</p>
+                          <p className="text-[11px] text-[#6F7E72] leading-relaxed">Các thông báo từ hệ thống sẽ hiển thị tại đây.</p>
+                        </div>
+                      ) : (
+                        notifications.map((item) => {
+                          const isUnread = item.status !== 'read';
+                          return (
+                            <div
+                              key={item.id}
+                              onClick={() => handleNotifClick(item)}
+                              className={`p-3.5 transition-colors cursor-pointer flex items-start gap-3 ${
+                                isUnread ? 'bg-emerald-50/70 hover:bg-emerald-50 border-l-4 border-l-[#006241]' : 'hover:bg-[#F2F0EB]/60'
+                              }`}
+                            >
+                              <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
+                                isUnread ? 'bg-[#006241] text-white' : 'bg-[#E6E2D8] text-[#6F7E72]'
+                              }`}>
+                                <Bell className="w-3.5 h-3.5" />
+                              </div>
+                              <div className="flex-1 min-w-0 space-y-1">
+                                <div className="flex items-center justify-between gap-1">
+                                  <h4 className={`text-xs truncate ${isUnread ? 'font-extrabold text-[#1E3932]' : 'font-bold text-[#6F7E72]'}`}>
+                                    {item.notification?.notificationName || 'Thông báo mới'}
+                                  </h4>
+                                  {isUnread && <span className="w-2 h-2 rounded-full bg-[#006241] shrink-0" />}
+                                </div>
+                                <p className="text-[11px] text-[#6F7E72] line-clamp-2 leading-relaxed">{item.notification?.contents || ''}</p>
+                                <div className="flex items-center justify-between pt-0.5 text-[10px] text-[#6F7E72] font-mono">
+                                  <span>{item.notification?.user?.username ? `Bởi: ${item.notification.user.username}` : 'Hệ thống'}</span>
+                                  <span>{new Date(item.createdAt || item.notification?.createdAt).toLocaleDateString('vi-VN')}</span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>{/* end action icons */}
+
+          <div className="relative shrink-0" ref={userMenuRef}>
             <button
               onClick={() => {
                 const nextState = !userMenuOpen;
@@ -309,12 +474,27 @@ export const UserProfilePage: React.FC<UserProfilePageProps> = ({ currentUser, o
                   currentUser?.avatarUrl ||
                   accountAvatarCache.getAvatar(currentUser?.username || '') ||
                   accountAvatarCache.getAvatar(displayName);
-                return navAvatar ? (
-                  <img src={navAvatar} alt={displayName} className="w-6 h-6 rounded-full object-cover shadow" />
-                ) : (
-                  <div className="w-6 h-6 rounded-full bg-[#006241] flex items-center justify-center font-extrabold text-[#FBF8F0] text-xs shadow">
-                    {avatarLetter}
-                  </div>
+                return (
+                  <>
+                    {navAvatar && (
+                      <img
+                        src={navAvatar}
+                        alt={displayName}
+                        className="w-6 h-6 rounded-full object-cover shadow"
+                        onError={(e) => {
+                          (e.currentTarget as HTMLElement).style.display = 'none';
+                          const fb = e.currentTarget.nextElementSibling as HTMLElement;
+                          if (fb) fb.style.display = 'flex';
+                        }}
+                      />
+                    )}
+                    <div
+                      style={{ display: navAvatar ? 'none' : 'flex' }}
+                      className="w-6 h-6 rounded-full bg-[#006241] items-center justify-center font-extrabold text-[#FBF8F0] text-xs shadow"
+                    >
+                      {avatarLetter}
+                    </div>
+                  </>
                 );
               })()}
               <span className="text-xs font-bold text-[#FBF8F0] max-w-[120px] truncate">
@@ -349,9 +529,9 @@ export const UserProfilePage: React.FC<UserProfilePageProps> = ({ currentUser, o
                       <Wallet className="w-4 h-4 text-[#006241] shrink-0" />
                       <span className="truncate">Ví Xu Số Dư</span>
                     </div>
-                    <div className="flex items-center gap-1 shrink-0 max-w-[120px] bg-[#006241]/10 px-2.5 py-0.5 rounded-full border border-[#006241]/20 text-[#006241]">
+                    <div className="flex items-center gap-1 shrink-0 bg-[#006241]/10 px-2.5 py-0.5 rounded-full border border-[#006241]/20 text-[#006241]">
                       <Coins className="w-3 h-3 text-[#006241] shrink-0" />
-                      <span className="text-[11px] font-extrabold font-mono truncate">
+                      <span className="text-[11px] font-extrabold font-mono whitespace-nowrap">
                         {isLoadingWallet ? '...' : `${walletBalance.toLocaleString('vi-VN')} Xu`}
                       </span>
                     </div>
@@ -482,14 +662,15 @@ export const UserProfilePage: React.FC<UserProfilePageProps> = ({ currentUser, o
                 </div>
               </div>
             )}
-          </div>
+          </div>{/* end user menu */}
+          </div>{/* end right group */}
         </div>
       </header>
 
-      <div className="flex-1 max-w-[1440px] w-full mx-auto px-4 sm:px-6 lg:px-10 pt-20 sm:pt-24 pb-10 flex flex-col md:flex-row gap-6">
-        <aside className="w-full md:w-64 shrink-0 space-y-4">
-          <div className="p-5 rounded-[28px] bg-white border border-[#E6E2D8] shadow-md space-y-6">
-            <div className="p-4 rounded-2xl bg-[#F2F0EB]/70 border border-[#E6E2D8] text-center">
+      <div className="flex-1 max-w-[1440px] w-full mx-auto px-4 sm:px-6 lg:px-10 pt-20 sm:pt-24 pb-10 flex flex-col md:flex-row gap-6 min-w-0">
+        <aside className="w-full md:w-64 shrink-0 space-y-4 min-w-0 max-w-full">
+          <div className="p-4 sm:p-5 rounded-[28px] bg-white border border-[#E6E2D8] shadow-md space-y-4 sm:space-y-6 min-w-0 max-w-full overflow-hidden md:overflow-visible">
+            <div className="p-4 rounded-2xl bg-[#F2F0EB]/70 border border-[#E6E2D8] text-center min-w-0">
               <div className="relative w-16 h-16 mx-auto mb-2 group">
                 <input
                   type="file"
@@ -533,7 +714,7 @@ export const UserProfilePage: React.FC<UserProfilePageProps> = ({ currentUser, o
               </div>
             </div>
 
-            <nav className="flex md:flex-col overflow-x-auto md:overflow-visible gap-1.5 pb-1 md:pb-0 custom-scrollbar">
+            <nav className="flex md:flex-col overflow-x-auto md:overflow-visible gap-1.5 pb-1 md:pb-0 custom-scrollbar min-w-0 w-full max-w-full">
               <div className="text-[10px] font-mono font-extrabold text-[#6F7E72] uppercase tracking-wider px-3 mb-2 hidden md:block">
                 Danh Mục Hồ Sơ
               </div>
@@ -573,19 +754,19 @@ export const UserProfilePage: React.FC<UserProfilePageProps> = ({ currentUser, o
           </div>
         </aside>
 
-        <main key={activeTab} className="flex-1 space-y-6 min-w-0">
-          <div className="p-4 sm:p-5 rounded-[24px] bg-white border border-[#E6E2D8] shadow-sm flex items-center justify-between">
-            <div className="flex items-center gap-2 text-xs font-mono font-bold text-[#6F7E72]">
-              <span>Tài Khoản</span>
-              <ChevronRight className="w-3.5 h-3.5" />
-              <span>Hồ Sơ</span>
-              <ChevronRight className="w-3.5 h-3.5" />
-              <span className="text-[#1E3932] font-black uppercase">
+        <main key={activeTab} className="flex-1 space-y-6 min-w-0 w-full max-w-full">
+          <div className="p-3.5 sm:p-5 rounded-[24px] bg-white border border-[#E6E2D8] shadow-sm flex items-center justify-between gap-2 min-w-0">
+            <div className="flex items-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs font-mono font-bold text-[#6F7E72] min-w-0 flex-1">
+              <span className="shrink-0">Tài Khoản</span>
+              <ChevronRight className="w-3.5 h-3.5 shrink-0 text-[#6F7E72]/50" />
+              <span className="shrink-0">Hồ Sơ</span>
+              <ChevronRight className="w-3.5 h-3.5 shrink-0 text-[#6F7E72]/50" />
+              <span className="text-[#1E3932] font-black uppercase truncate">
                 {SIDEBAR_ITEMS.find((i) => i.key === activeTab)?.label}
               </span>
             </div>
 
-            <div className="inline-flex items-center gap-1.5 text-xs text-[#006241] font-bold">
+            <div className="hidden sm:inline-flex items-center gap-1.5 text-xs text-[#006241] font-bold shrink-0">
               <Shield className="w-4 h-4" />
               <span>Bảo mật 100%</span>
             </div>
@@ -600,7 +781,12 @@ export const UserProfilePage: React.FC<UserProfilePageProps> = ({ currentUser, o
               />
             )}
 
-            {activeTab === 'booked-yards' && <BookedYardsTab currentUser={currentUser} />}
+            {activeTab === 'booked-yards' && (
+              <BookedYardsTab
+                currentUser={currentUser}
+                onCountsChange={({ upcoming }) => setUpcomingBookingsCount(upcoming)}
+              />
+            )}
 
             {activeTab === 'vendor' && <VendorManagementTab />}
 

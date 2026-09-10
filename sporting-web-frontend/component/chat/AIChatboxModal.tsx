@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
 import {
   Bot,
@@ -9,6 +9,7 @@ import {
   Maximize2,
   AlertCircle,
   ChevronDown,
+  Loader2,
 } from 'lucide-react';
 import {
   chatService,
@@ -21,6 +22,7 @@ import { tokenManager } from '../../utils/tokenManager';
 import { ChatBubble } from './ChatBubble';
 import { ChatInputBar } from './ChatInputBar';
 import { ChatConversationList } from './ChatConversationList';
+import { CHAT_MESSAGES_LIMIT } from '../../utils/appConfig';
 
 export interface AIChatboxModalProps {
   isOpen: boolean;
@@ -45,12 +47,26 @@ export const AIChatboxModal: React.FC<AIChatboxModalProps> = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showScrollBottomBtn, setShowScrollBottomBtn] = useState(false);
 
+  // Pagination & lazy loading states
+  const [hasMore, setHasMore] = useState(false);
+  const [nextCursor, setNextCursor] = useState<number | null>(null);
+  const [isLoadingOlder, setIsLoadingOlder] = useState(false);
+  const [isLoadingInitial, setIsLoadingInitial] = useState(false);
+  const [hasLoadError, setHasLoadError] = useState(false);
+
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const activeConvIdRef = useRef<number | undefined>(activeConversationId);
   const userScrolledUpRef = useRef(false);
   const isStreamingRef = useRef(false);
+
+  // Pagination refs to guarantee atomic checks and avoid stale closures during rapid scrolling
+  const isLoadingOlderRef = useRef(false);
+  const hasMoreRef = useRef(false);
+  const nextCursorRef = useRef<number | null>(null);
+  const inFlightCursorRef = useRef<number | null>(null);
+  const pendingPrependRef = useRef<{ prevScrollHeight: number; prevScrollTop: number } | null>(null);
 
   useEffect(() => {
     activeConvIdRef.current = activeConversationId;
@@ -59,6 +75,29 @@ export const AIChatboxModal: React.FC<AIChatboxModalProps> = ({
   useEffect(() => {
     isStreamingRef.current = isStreaming;
   }, [isStreaming]);
+
+  useEffect(() => {
+    hasMoreRef.current = hasMore;
+  }, [hasMore]);
+
+  useEffect(() => {
+    nextCursorRef.current = nextCursor;
+  }, [nextCursor]);
+
+  /**
+   * Scroll Anchoring via useLayoutEffect:
+   * Runs synchronously right after React mutations and before browser paint.
+   * Preserves exact visual scroll position when older messages are prepended at the top.
+   */
+  useLayoutEffect(() => {
+    if (pendingPrependRef.current && scrollContainerRef.current) {
+      const container = scrollContainerRef.current;
+      const { prevScrollHeight, prevScrollTop } = pendingPrependRef.current;
+      const heightDifference = container.scrollHeight - prevScrollHeight;
+      container.scrollTop = prevScrollTop + heightDifference;
+      pendingPrependRef.current = null;
+    }
+  }, [messages]);
 
   const scrollToBottom = (force = false) => {
     if (force || !userScrolledUpRef.current) {
@@ -79,23 +118,18 @@ export const AIChatboxModal: React.FC<AIChatboxModalProps> = ({
     const isScrolledUp = distanceFromBottom > 80;
     userScrolledUpRef.current = isScrolledUp;
     setShowScrollBottomBtn(isScrolledUp);
+
+    // Trigger reverse infinite scroll when scrolled near the top (< 160px)
+    if (scrollTop < 160 && hasMoreRef.current && !isLoadingOlderRef.current && !isLoadingInitial) {
+      loadOlderMessages();
+    }
   };
 
-  useEffect(() => {
-    scrollToBottom(false);
-  }, [messages, isStreaming]);
-
-  //Check health and load conversations/messages once
-  useEffect(() => {
-    checkAIHealth();
-    loadUserConversations(undefined, true);
-  }, []);
-
+  // Only check health and load conversations when the AI chat modal is actually opened by user
   useEffect(() => {
     if (isOpen) {
       checkAIHealth();
-      loadUserConversations(undefined, false);
-      setTimeout(() => scrollToBottom(true), 150);
+      loadUserConversations(undefined, true);
     }
   }, [isOpen]);
 
@@ -107,6 +141,99 @@ export const AIChatboxModal: React.FC<AIChatboxModalProps> = ({
       }
     } catch {
       setHealthStatus(null);
+    }
+  };
+
+  /**
+   * Deduplicates messages by message.id and prepends older messages.
+   */
+  const mergeAndPrependMessages = (
+    older: ChatMessageItem[],
+    current: ChatMessageItem[],
+  ): ChatMessageItem[] => {
+    const seenIds = new Set<number>();
+    const result: ChatMessageItem[] = [];
+
+    // Older batch first (chronological order)
+    for (const msg of older) {
+      if (msg.id != null) {
+        if (!seenIds.has(msg.id)) {
+          seenIds.add(msg.id);
+          result.push(msg);
+        }
+      } else {
+        result.push(msg);
+      }
+    }
+
+    // Current batch
+    for (const msg of current) {
+      if (msg.id != null) {
+        if (!seenIds.has(msg.id)) {
+          seenIds.add(msg.id);
+          result.push(msg);
+        }
+      } else {
+        result.push(msg);
+      }
+    }
+
+    return result;
+  };
+
+  /**
+   * Loads older messages before the current cursor (Reverse Infinite Scroll).
+   */
+  const loadOlderMessages = async () => {
+    const currentConvId = activeConvIdRef.current;
+    const cursor = nextCursorRef.current;
+
+    if (!currentConvId || !hasMoreRef.current || cursor == null) return;
+    if (isLoadingOlderRef.current || inFlightCursorRef.current === cursor) return;
+
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    isLoadingOlderRef.current = true;
+    setIsLoadingOlder(true);
+    setHasLoadError(false);
+    inFlightCursorRef.current = cursor;
+
+    try {
+      const res = await chatService.getMessages(currentConvId, { limit: CHAT_MESSAGES_LIMIT, before: cursor });
+      // Guard against race conditions if user switched conversation during fetch
+      if (activeConvIdRef.current !== currentConvId) return;
+
+      if (res.success && res.data) {
+        const olderItems = res.data.messages;
+        const newHasMore = res.data.hasMore;
+        const newNextCursor = res.data.nextCursor;
+
+        if (olderItems.length > 0) {
+          // Record current scroll position before DOM update for useLayoutEffect anchoring
+          pendingPrependRef.current = {
+            prevScrollHeight: container.scrollHeight,
+            prevScrollTop: container.scrollTop,
+          };
+
+          setMessages((prev) => mergeAndPrependMessages(olderItems, prev));
+        }
+
+        setHasMore(newHasMore);
+        hasMoreRef.current = newHasMore;
+        setNextCursor(newNextCursor);
+        nextCursorRef.current = newNextCursor;
+      } else {
+        setHasLoadError(true);
+      }
+    } catch {
+      if (activeConvIdRef.current === currentConvId) {
+        setHasLoadError(true);
+      }
+    } finally {
+      isLoadingOlderRef.current = false;
+      setIsLoadingOlder(false);
+      inFlightCursorRef.current = null;
     }
   };
 
@@ -146,34 +273,91 @@ export const AIChatboxModal: React.FC<AIChatboxModalProps> = ({
     }
   };
 
+  /**
+   * Fetches initial batch of messages (latest 25 messages) for a conversation.
+   */
   const fetchConversationMessages = async (convId: number) => {
+    setIsLoadingInitial(true);
+    setHasLoadError(false);
+    setIsLoadingOlder(false);
+    isLoadingOlderRef.current = false;
+    inFlightCursorRef.current = null;
+
     try {
-      const res = await chatService.getMessages(convId);
+      const res = await chatService.getMessages(convId, { limit: CHAT_MESSAGES_LIMIT });
+      if (activeConvIdRef.current !== convId) return;
+
       if (res.success && res.data) {
-        setMessages(res.data);
-        setTimeout(() => scrollToBottom(true), 100);
+        setMessages(res.data.messages);
+        setHasMore(res.data.hasMore);
+        hasMoreRef.current = res.data.hasMore;
+        setNextCursor(res.data.nextCursor);
+        nextCursorRef.current = res.data.nextCursor;
+
+        userScrolledUpRef.current = false;
+        setShowScrollBottomBtn(false);
+
+        // Immediate scroll to bottom on initial message load
+        requestAnimationFrame(() => {
+          if (scrollContainerRef.current) {
+            scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+          }
+        });
       }
     } catch {
       // Error loading messages
+    } finally {
+      if (activeConvIdRef.current === convId) {
+        setIsLoadingInitial(false);
+      }
     }
   };
 
   const handleSelectConversation = async (convId: number) => {
+    if (activeConvIdRef.current === convId) {
+      setShowHistory(false);
+      return;
+    }
+    if (isStreaming) {
+      handleStopStreaming();
+    }
     activeConvIdRef.current = convId;
     setActiveConversationId(convId);
+    setMessages([]);
+    setHasMore(false);
+    hasMoreRef.current = false;
+    setNextCursor(null);
+    nextCursorRef.current = null;
+    setIsLoadingOlder(false);
+    isLoadingOlderRef.current = false;
+    inFlightCursorRef.current = null;
+    pendingPrependRef.current = null;
     setShowHistory(false);
     setErrorMessage(null);
+    setHasLoadError(false);
     userScrolledUpRef.current = false;
     setShowScrollBottomBtn(false);
     fetchConversationMessages(convId);
   };
 
   const handleNewChat = () => {
+    if (isStreaming) {
+      handleStopStreaming();
+    }
     activeConvIdRef.current = undefined;
     setActiveConversationId(undefined);
     setMessages([]);
+    setHasMore(false);
+    hasMoreRef.current = false;
+    setNextCursor(null);
+    nextCursorRef.current = null;
+    setIsLoadingOlder(false);
+    isLoadingOlderRef.current = false;
+    inFlightCursorRef.current = null;
+    pendingPrependRef.current = null;
     setShowHistory(false);
     setErrorMessage(null);
+    setHasLoadError(false);
     userScrolledUpRef.current = false;
     setShowScrollBottomBtn(false);
   };
@@ -266,6 +450,11 @@ export const AIChatboxModal: React.FC<AIChatboxModalProps> = ({
             }
             return updated;
           });
+
+          // Follow streaming output only if user has not scrolled up to read earlier messages
+          if (!userScrolledUpRef.current && scrollContainerRef.current) {
+            scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+          }
         },
         onDone: (finalData) => {
           setIsStreaming(false);
@@ -296,7 +485,10 @@ export const AIChatboxModal: React.FC<AIChatboxModalProps> = ({
             id: 'ai-done-toast',
             duration: 3500,
           });
-          setTimeout(() => scrollToBottom(true), 150);
+
+          if (!userScrolledUpRef.current && scrollContainerRef.current) {
+            scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+          }
         },
         onError: (errText) => {
           setIsStreaming(false);
@@ -477,9 +669,44 @@ export const AIChatboxModal: React.FC<AIChatboxModalProps> = ({
           <div
             ref={scrollContainerRef}
             onScroll={handleScroll}
-            className="flex-1 flex flex-col h-full overflow-y-auto px-4 py-3 scroll-smooth"
+            className="flex-1 flex flex-col h-full overflow-y-auto px-4 py-3"
+            style={{ overflowAnchor: 'auto' }}
           >
-            {messages.length === 0 ? (
+            {/* Top Loading indicator for reverse infinite scroll */}
+            {isLoadingOlder && (
+              <div className="py-2.5 flex items-center justify-center gap-2 text-xs text-slate-500 dark:text-slate-400 select-none animate-fadeIn">
+                <Loader2 className="w-4 h-4 animate-spin text-emerald-600 dark:text-emerald-400" />
+                <span>Đang tải tin nhắn cũ hơn...</span>
+              </div>
+            )}
+
+            {/* Error retry indicator if loading older messages fails */}
+            {hasLoadError && (
+              <div className="py-2 flex items-center justify-center gap-2 text-xs text-rose-500 dark:text-rose-400 select-none animate-fadeIn">
+                <span>Không thể tải tin nhắn cũ.</span>
+                <button
+                  type="button"
+                  onClick={loadOlderMessages}
+                  className="underline hover:text-rose-600 dark:hover:text-rose-300 font-medium cursor-pointer"
+                >
+                  Thử lại
+                </button>
+              </div>
+            )}
+
+            {/* End of conversation history indicator */}
+            {!hasMore && !isLoadingInitial && messages.length >= CHAT_MESSAGES_LIMIT && (
+              <div className="py-2 text-center text-[11px] text-slate-400 dark:text-slate-500 select-none">
+                Đã hiển thị toàn bộ lịch sử tin nhắn
+              </div>
+            )}
+
+            {isLoadingInitial && messages.length === 0 ? (
+              <div className="my-auto text-center py-10 space-y-3">
+                <Loader2 className="w-6 h-6 animate-spin text-emerald-600 dark:text-emerald-400 mx-auto" />
+                <p className="text-xs text-slate-500 dark:text-slate-400">Đang tải tin nhắn gần đây...</p>
+              </div>
+            ) : messages.length === 0 ? (
               <div className="my-auto text-center px-4 py-6 space-y-4">
                 <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto shadow-xs">
                   <Bot className="w-6 h-6" />
@@ -524,7 +751,7 @@ export const AIChatboxModal: React.FC<AIChatboxModalProps> = ({
             ) : (
               messages.map((msg, idx) => (
                 <ChatBubble
-                  key={idx}
+                  key={msg.id != null ? `msg-${msg.id}` : `temp-${idx}-${msg.createdAt || msg.role}`}
                   index={idx}
                   message={msg}
                   isLastAssistant={idx === messages.length - 1 && msg.role === 'assistant'}

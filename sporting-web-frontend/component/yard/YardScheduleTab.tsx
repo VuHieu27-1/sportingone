@@ -21,6 +21,7 @@ import { generateTimeSlotsAMPM, formatTimeAMPM } from '../../utils/dateUtils';
 import { TimePickerInput } from '../common/TimePickerInput';
 import { TimeRangePicker } from '../common/TimeRangePicker';
 import { normalizeTimeInput, validateTime, timeStrToMinutes } from '../../utils/timePickerUtils';
+import toast from 'react-hot-toast';
 
 export interface GroupedBookingSlot {
   date: string;
@@ -51,6 +52,7 @@ export const YardScheduleTab: React.FC<YardScheduleTabProps> = ({
   const [startDateOffset, setStartDateOffset] = useState<number>(0);
   const [selectedSlotIndices, setSelectedSlotIndices] = useState<number[]>([]);
   const [customOrders, setCustomOrders] = useState<GroupedBookingSlot[]>([]);
+  const [currentNowMs, setCurrentNowMs] = useState<number>(() => timeService.getNowMs());
   const isUpdatingFromOrderEdit = useRef<boolean>(false);
 
   // Sync actual real-time date from API
@@ -70,6 +72,19 @@ export const YardScheduleTab: React.FC<YardScheduleTabProps> = ({
     return () => {
       isMounted = false;
     };
+  }, []);
+
+  // Real-time interval: checks time every 10 seconds to keep slot availability strictly updated.
+  // In-memory calculation using Date.now() + syncedOffsetMs (no server queries, no N+1, no UI lag).
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const nowMs = timeService.getNowMs();
+      setCurrentNowMs(nowMs);
+      const newToday = timeService.getTodayDateStr();
+      setTodayStr((prev) => (prev !== newToday ? newToday : prev));
+    }, 10000);
+
+    return () => clearInterval(timer);
   }, []);
 
   // 15-minute increment dropdown options from 06:00 to 23:45
@@ -92,7 +107,7 @@ export const YardScheduleTab: React.FC<YardScheduleTabProps> = ({
       const dateStr = `${yyyy}-${mm}-${dd}`;
 
       const isTodayDate = dateStr === todayStr;
-      const isPastDate = new Date(`${dateStr}T23:59:59.999`).getTime() < timeService.getNowMs();
+      const isPastDate = new Date(`${dateStr}T23:59:59.999+07:00`).getTime() < currentNowMs;
 
       let dayName = d.toLocaleDateString('vi-VN', { weekday: 'short' });
       if (isTodayDate) dayName = 'Hôm nay';
@@ -107,7 +122,7 @@ export const YardScheduleTab: React.FC<YardScheduleTabProps> = ({
       list.push({ dateStr, label, dayName, isToday: isTodayDate, isPast: isPastDate });
     }
     return list;
-  }, [todayStr, startDateOffset]);
+  }, [todayStr, startDateOffset, currentNowMs]);
 
   // Handle custom date picker input change
   const handleCustomDateChange = (newDateStr: string) => {
@@ -279,10 +294,8 @@ export const YardScheduleTab: React.FC<YardScheduleTabProps> = ({
       if (slot.startMins >= 12 * 60 && slot.startMins < 17 * 60) period = 'afternoon';
       else if (slot.startMins >= 17 * 60) period = 'evening';
 
-      const [eH, eM] = end.split(':').map(Number);
-      const slotEndObj = new Date(`${selectedDate}T00:00:00`);
-      slotEndObj.setHours(eH, eM, 0, 0);
-      const isPast = slotEndObj.getTime() <= timeService.getNowMs();
+      const slotStartMs = new Date(`${selectedDate}T${start}:00+07:00`).getTime();
+      const isPast = slotStartMs <= currentNowMs;
 
       const matchedBooking = slot.booking;
       const isOccupied = Boolean(matchedBooking);
@@ -315,7 +328,7 @@ export const YardScheduleTab: React.FC<YardScheduleTabProps> = ({
         matchedBooking,
       };
     });
-  }, [selectedDate, openTime, closeTime, paidBookings, yard.id, yard.status, currentUser]);
+  }, [selectedDate, openTime, closeTime, paidBookings, yard.id, yard.status, currentUser, currentNowMs]);
 
   const basePrice = Number(yard.price || 0);
   const discountPercent = yard.sale?.discountPercent || 0;
@@ -401,7 +414,18 @@ export const YardScheduleTab: React.FC<YardScheduleTabProps> = ({
       return;
     }
 
-    const rawSlots = selectedSlotIndices
+    // Auto-prune any slots that became unavailable / expired in real-time
+    const validSelectedIndices = selectedSlotIndices.filter((idx) => {
+      const slot = evaluatedSlots[idx];
+      return slot && slot.isAvailable;
+    });
+
+    if (validSelectedIndices.length !== selectedSlotIndices.length) {
+      setSelectedSlotIndices(validSelectedIndices);
+      return;
+    }
+
+    const rawSlots = validSelectedIndices
       .map((idx) => evaluatedSlots[idx])
       .filter(Boolean)
       .map((s) => ({ date: selectedDate, startTime: s.start, endTime: s.end }));
@@ -528,6 +552,18 @@ export const YardScheduleTab: React.FC<YardScheduleTabProps> = ({
 
   const handleConfirmAllOrders = () => {
     if (customOrders.length === 0) return;
+
+    // Safety guard: check if any order has expired past current real time
+    const nowMs = timeService.getNowMs();
+    const hasExpiredOrder = customOrders.some((order) => {
+      const orderStartMs = new Date(`${order.date}T${order.startTime}:00+07:00`).getTime();
+      return orderStartMs <= nowMs;
+    });
+
+    if (hasExpiredOrder) {
+      toast.error('Có khung giờ đã quá thời gian hiện tại và không thể đặt. Vui lòng chọn khung giờ khác!');
+      return;
+    }
 
     if (onBookMultipleSlots) {
       onBookMultipleSlots(customOrders);

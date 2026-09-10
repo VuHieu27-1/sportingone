@@ -113,8 +113,13 @@ export const DataTablePagination: React.FC<DataTablePaginationProps> = ({
           <span className="hidden sm:inline">Trước</span>
         </button>
 
-        {/* Page Number Buttons */}
-        <div className="flex items-center gap-1">
+        {/* Mobile Compact Page Indicator */}
+        <div className="flex sm:hidden items-center px-2 text-xs font-mono font-black text-[#1E3932]">
+          {currentPage} / {totalPages}
+        </div>
+
+        {/* Page Number Buttons - Desktop */}
+        <div className="hidden sm:flex items-center gap-1">
           {pageNumbers.map((page, idx) => {
             if (typeof page === 'string') {
               return (

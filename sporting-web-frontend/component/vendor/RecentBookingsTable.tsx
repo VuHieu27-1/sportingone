@@ -180,7 +180,7 @@ export const RecentBookingsTable: React.FC<RecentBookingsTableProps> = ({ bookin
       ) : (
         <div className="space-y-3">
           <div className="overflow-x-auto rounded-2xl border border-[#E6E2D8]">
-            <table className="w-full text-left text-xs border-collapse font-['Plus_Jakarta_Sans',sans-serif]">
+            <table className="w-full min-w-[750px] text-left text-xs border-collapse font-['Plus_Jakarta_Sans',sans-serif]">
               <thead>
                 <tr className="bg-[#FAF8F5] border-b border-[#E6E2D8] text-[#1E3932] uppercase font-mono text-[11px] tracking-wider">
                   <DataTableHeader

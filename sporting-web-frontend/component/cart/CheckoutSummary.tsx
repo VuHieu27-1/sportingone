@@ -120,7 +120,7 @@ export const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
               </div>
               <div>
                 <h4 className="text-xs sm:text-sm font-black text-[#1E3932]">
-                  Thanh Toán Ngân Hàng (PayOS VietQR)
+                  Thanh Toán Ngân Hàng (Chuyển Khoản VietQR)
                 </h4>
               </div>
             </div>
@@ -208,7 +208,7 @@ export const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
           <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-semibold flex items-center gap-2.5 animate-in fade-in duration-200 shadow-2xs">
             <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
             <span className="leading-snug">
-              Số dư xu không đủ (Thiếu {(totalPayable - walletBalance).toLocaleString('vi-VN')} Xu). Vui lòng chọn PayOS hoặc Nạp Xu vào ví!
+              Số dư xu không đủ (Thiếu {(totalPayable - walletBalance).toLocaleString('vi-VN')} Xu). Vui lòng chọn VietQR hoặc Nạp Xu vào ví!
             </span>
           </div>
         )}

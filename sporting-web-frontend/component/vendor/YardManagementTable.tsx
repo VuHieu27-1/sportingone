@@ -1147,10 +1147,16 @@ export const YardManagementTable: React.FC<YardManagementTableProps> = ({
       {/* Top Header Card */}
       <div className="p-6 rounded-3xl bg-white border border-[#E6E2D8] flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xs">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-xl font-black text-[#1E3932] tracking-tight">
               Quản Lý Tình Trạng & Danh Sách Sân Con
             </h2>
+            {selectedVendor && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-[#006241] border border-emerald-200 text-xs font-bold">
+                <Building2 className="w-3.5 h-3.5 text-[#006241]" />
+                <span>{selectedVendor.vendorName}</span>
+              </span>
+            )}
             <span className="px-2.5 py-0.5 rounded-full bg-[#006241]/10 text-[#006241] font-mono font-bold text-xs">
               {yards.length} Sân
             </span>
@@ -1639,7 +1645,7 @@ export const YardManagementTable: React.FC<YardManagementTableProps> = ({
         /* ============================================================ */
         <div className="bg-white rounded-3xl border border-[#E6E2D8] overflow-hidden shadow-xs">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
+            <table className="w-full min-w-[750px] text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-[#FAF8F5] border-b border-[#E6E2D8] text-[#1E3932] uppercase font-mono text-[10px] tracking-wider">
                   <DataTableHeader

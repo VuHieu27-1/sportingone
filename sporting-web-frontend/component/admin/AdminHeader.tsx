@@ -44,7 +44,7 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
           {activeTab === 'yards' && 'QUẢN LÝ SÂN THỂ THAO'}
           {activeTab === 'approvals' && 'DUYỆT RÚT & REFUND'}
           {activeTab === 'transactions' && 'KIỂM TOÁN GIAO DỊCH'}
-          {activeTab === 'settings' && 'CẤU HÌNH PHÂN QUYỀN'}
+          {activeTab === 'settings' && 'CẤU HÌNH & SAO LƯU DỮ LIỆU'}
           {activeTab === 'ai-keys' && 'QUẢN LÝ AI API KEY'}
         </span>
       </div>

@@ -241,16 +241,33 @@ export const BookedYardCard: React.FC<BookedYardCardProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Rate Yard Button */}
-          <button
-            type="button"
-            onClick={() => onOpenRating(yard, relevantBooking || undefined)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-full bg-white hover:bg-amber-50 text-amber-600 border border-amber-300 transition-all cursor-pointer shadow-xs hover:shadow text-xs font-bold"
-            title="Đánh giá chất lượng sân này"
-          >
-            <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-            <span>Đánh giá</span>
-          </button>
+          {/* Rate Yard Button - only enabled if user has completed playing at this yard */}
+          {yardItem.allBookings?.some((b) => b.status === 'paid' && new Date(b.endTime) < new Date()) ? (
+            <button
+              type="button"
+              onClick={() => {
+                const latestCompleted = yardItem.allBookings
+                  ?.filter((b) => b.status === 'paid' && new Date(b.endTime) < new Date())
+                  .sort((a, b) => new Date(b.endTime).getTime() - new Date(a.endTime).getTime())[0];
+                onOpenRating(yard, latestCompleted || relevantBooking || undefined);
+              }}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-full bg-white hover:bg-amber-50 text-amber-600 border border-amber-300 transition-all cursor-pointer shadow-xs hover:shadow text-xs font-bold"
+              title="Đánh giá chất lượng sân này"
+            >
+              <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+              <span>Đánh giá</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-full bg-[#F2F0EB] text-[#6F7E72] border border-[#E6E2D8] text-xs font-medium cursor-not-allowed opacity-75"
+              title="Bạn chỉ có thể đánh giá sau khi hoàn thành lượt chơi"
+            >
+              <Clock className="w-3.5 h-3.5 text-[#6F7E72]" />
+              <span>Chưa thể đánh giá</span>
+            </button>
+          )}
 
           {/* View QR Button if there is an active/upcoming booking */}
           {relevantBooking && (

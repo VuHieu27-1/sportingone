@@ -314,6 +314,7 @@ export default function App() {
     <BrowserRouter>
       <Toaster
         position="top-right"
+        containerStyle={{ zIndex: 99999999 }}
         toastOptions={{
           duration: 4000,
           style: {
@@ -323,6 +324,7 @@ export default function App() {
             border: '1px solid #334155',
             fontSize: '14px',
             padding: '12px 16px',
+            zIndex: 99999999,
           },
           success: {
             iconTheme: {

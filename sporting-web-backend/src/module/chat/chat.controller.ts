@@ -20,7 +20,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @Controller('chat')
 export class ChatController {
-  constructor(private readonly chatService: ChatService) {}
+  constructor(private readonly chatService: ChatService) { }
 
   /**
    * Health check endpoint for chat service
@@ -91,16 +91,24 @@ export class ChatController {
   }
 
   /**
-   * Get messages for a specific conversation
+   * Get messages for a specific conversation with cursor-based pagination
    */
   @Get('conversations/:id/messages')
   @UseGuards(OptionalJwtAuthGuard)
   async getMessages(
     @Req() req: any,
     @Param('id', ParseIntPipe) id: number,
+    @Query('limit') limitQuery?: string,
+    @Query('before') beforeQuery?: string,
   ) {
     const userId = req.user?.id || null;
-    return this.chatService.getConversationMessages(userId, id);
+    const defaultLimit = Number(process.env.CHAT_MESSAGES_LIMIT) || 10;
+    const parsedLimit = limitQuery ? parseInt(limitQuery, 10) : defaultLimit;
+    const limit = isNaN(parsedLimit) ? defaultLimit : Math.min(Math.max(parsedLimit, 1), 100);
+    const parsedBefore = beforeQuery ? parseInt(beforeQuery, 10) : undefined;
+    const before = parsedBefore && !isNaN(parsedBefore) ? parsedBefore : undefined;
+
+    return this.chatService.getConversationMessages(userId, id, limit, before);
   }
 
   /**

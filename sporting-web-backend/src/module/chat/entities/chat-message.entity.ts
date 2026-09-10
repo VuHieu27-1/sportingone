@@ -10,6 +10,7 @@ import {
 import { Conversation } from './conversation.entity';
 
 @Entity('chat_messages')
+@Index(['conversationId', 'id'])
 export class ChatMessage {
   @PrimaryGeneratedColumn()
   id: number;

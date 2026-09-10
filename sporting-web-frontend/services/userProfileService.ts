@@ -64,9 +64,26 @@ export const accountAvatarCache = {
   },
 };
 
+let cachedProfileMemory: UserProfileDetails | null = null;
+
 export const userProfileService = {
   /**
-   * Retrieves ProfileFromApi information.
+   * Returns locally cached profile for instant UI display (0ms Stale-While-Revalidate)
+   */
+  getCachedProfile(): UserProfileDetails | null {
+    if (cachedProfileMemory) return cachedProfileMemory;
+    try {
+      const raw = sessionStorage.getItem('sporting_cached_profile');
+      if (raw) {
+        cachedProfileMemory = JSON.parse(raw);
+        return cachedProfileMemory;
+      }
+    } catch {}
+    return null;
+  },
+
+  /**
+   * Retrieves ProfileFromApi information in parallel.
    */
   async fetchProfileFromApi(): Promise<ApiResponse<UserProfileDetails>> {
     const token = tokenManager.getActiveToken();
@@ -78,21 +95,21 @@ export const userProfileService = {
       };
     }
     try {
-      const userRes = await apiClient.get<any>('/users/profile');
-
-      let detailRes: ApiResponse<any> = { success: false, message: '' };
-      try {
-        detailRes = await apiClient.get<any>('/detail-users');
-      } catch (err) {
-        console.warn('detail-users record not initialized yet', err);
-      }
-
-      let addressesRes: ApiResponse<UserAddress[]> = { success: false, message: '' };
-      try {
-        addressesRes = await userAddressService.getMyAddresses();
-      } catch (err) {
-        console.warn('Failed to fetch user_address list', err);
-      }
+      // Parallelize requests with Promise.all to prevent sequential waiting
+      const [userRes, detailRes, addressesRes] = await Promise.all([
+        apiClient.get<any>('/users/profile').catch((err) => {
+          console.warn('Failed to fetch /users/profile', err);
+          return { success: false, message: '' } as ApiResponse<any>;
+        }),
+        apiClient.get<any>('/detail-users').catch((err) => {
+          console.warn('detail-users record not initialized yet', err);
+          return { success: false, message: '' } as ApiResponse<any>;
+        }),
+        userAddressService.getMyAddresses().catch((err) => {
+          console.warn('Failed to fetch user_address list', err);
+          return { success: false, message: '', data: [] } as ApiResponse<UserAddress[]>;
+        }),
+      ]);
 
       if (!userRes.success && !detailRes.success) {
         return {
@@ -146,6 +163,12 @@ export const userProfileService = {
       if (profile.username && resolvedAvatar) {
         accountAvatarCache.saveAvatar(profile.username, resolvedAvatar);
       }
+
+      // Update instant cache
+      cachedProfileMemory = profile;
+      try {
+        sessionStorage.setItem('sporting_cached_profile', JSON.stringify(profile));
+      } catch {}
 
       return {
         success: true,

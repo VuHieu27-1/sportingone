@@ -20,9 +20,11 @@ import {
   Headphones,
   Loader2,
   ExternalLink,
+  FileText,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { bookingService } from '../services/bookingService';
+import { printBookingInvoice, printElementAsPdf } from '../component/common/pdfService';
 
 export const VerifyQrPage: React.FC = () => {
   const navigate = useNavigate();
@@ -95,11 +97,127 @@ export const VerifyQrPage: React.FC = () => {
     });
   };
 
+  const isSuccess = result?.success && result?.valid !== false;
+  const timeStatus = result?.timeStatus || (isSuccess ? 'active' : 'expired');
+  const booking = result?.booking || result?.bookingMonth || {};
+
+  const formatDateOnly = (dateStr?: string) => {
+    if (!dateStr) return '';
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return String(dateStr).split('T')[0];
+      return d.toLocaleDateString('vi-VN');
+    } catch {
+      return String(dateStr).split('T')[0];
+    }
+  };
+
   /**
-   * Handles event processing for handlePrint.
+   * Prints the official booking invoice via the jsPDF library.
    */
-  const handlePrint = () => {
-    window.print();
+  const handlePrintInvoice = async () => {
+    if (booking && (booking.id || bookingId)) {
+      const isMonth = bookingType === 'month' || Boolean(booking.startDate);
+
+      const customerName =
+        booking.username ||
+        booking.user?.username ||
+        booking.customerName ||
+        (booking.email ? booking.email.split('@')[0] : '') ||
+        'Khách Hàng';
+
+      const customerPhone =
+        booking.phone ||
+        booking.userPhone ||
+        booking.user?.phone ||
+        (booking.user as any)?.detailUser?.phone ||
+        '';
+
+      const customerEmail =
+        booking.email ||
+        booking.user?.email ||
+        '';
+
+      const vendorName =
+        booking.vendorName ||
+        booking.yard?.vendor?.vendorName ||
+        (booking.yard?.vendor as any)?.name ||
+        'Cụm Sân Thể Thao';
+
+      const vendorAddress =
+        booking.vendorAddress ||
+        booking.yard?.vendor?.vendorAddress ||
+        (booking.yard?.vendor as any)?.address ||
+        '';
+
+      const yardName =
+        booking.yardName ||
+        booking.yard?.yardName ||
+        (booking.yardId ? `Sân #${booking.yardId}` : '') ||
+        (booking.yard?.id ? `Sân #${booking.yard.id}` : '') ||
+        (booking.id ? `Sân #${booking.id}` : `Sân #${bookingId}`);
+
+      const sportName =
+        booking.sportName ||
+        booking.yard?.sportType?.sportName ||
+        'Sân thể thao';
+
+      const typeName =
+        booking.typeName ||
+        booking.yard?.typeYard?.typeName ||
+        '';
+
+      const bookingDate = isMonth
+        ? `${formatDateOnly(booking.startDate)} - ${formatDateOnly(booking.endDate)}`
+        : formatDateOnly(booking.startTime);
+
+      let timeSlot = '';
+      let durationHours = 1;
+
+      if (isMonth) {
+        timeSlot = `${booking.startTime || '08:00'} - ${booking.endTime || '10:00'}`;
+        const [sH, sM] = String(booking.startTime || '08:00').split(':').map(Number);
+        const [eH, eM] = String(booking.endTime || '10:00').split(':').map(Number);
+        if (!isNaN(sH) && !isNaN(eH)) {
+          const diff = (eH * 60 + (eM || 0)) - (sH * 60 + (sM || 0));
+          if (diff > 0) durationHours = Math.round((diff / 60) * 10) / 10;
+        }
+      } else {
+        const sDate = new Date(booking.startTime);
+        const eDate = new Date(booking.endTime);
+        const sTime = !isNaN(sDate.getTime()) ? sDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : String(booking.startTime || '');
+        const eTime = !isNaN(eDate.getTime()) ? eDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : String(booking.endTime || '');
+        timeSlot = `${sTime} - ${eTime}`;
+
+        if (!isNaN(sDate.getTime()) && !isNaN(eDate.getTime()) && eDate.getTime() > sDate.getTime()) {
+          durationHours = Math.round(((eDate.getTime() - sDate.getTime()) / (1000 * 60 * 60)) * 10) / 10;
+        }
+      }
+
+      await printBookingInvoice({
+        bookingId: booking.id || bookingId,
+        orderCode: `#BK-${booking.id || bookingId}`,
+        customerName,
+        customerPhone,
+        customerEmail,
+        vendorName,
+        vendorAddress,
+        yardName,
+        sportName,
+        typeName,
+        bookingDate,
+        timeSlot,
+        durationHours,
+        totalPrice: Number(booking.priced || 0),
+        paymentStatus: 'ĐÃ THANH TOÁN (PAID)',
+        sig: sig || booking.sig,
+        qrImageUrl: `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(window.location.href)}`,
+        verifyUrl: window.location.href,
+        isMonth,
+      });
+    } else {
+      await printElementAsPdf('#verify-card-container');
+    }
   };
 
   /**
@@ -115,10 +233,6 @@ export const VerifyQrPage: React.FC = () => {
       return dateStr;
     }
   };
-
-  const isSuccess = result?.success && result?.valid !== false;
-  const timeStatus = result?.timeStatus || (isSuccess ? 'active' : 'expired');
-  const booking = result?.booking || result?.bookingMonth || {};
 
   return (
     <div className="min-h-screen bg-[#F2F0EB] font-['Plus_Jakarta_Sans',sans-serif] text-[#1E3932] selection:bg-[#006241] selection:text-white py-8 px-4 sm:px-6 lg:px-8">
@@ -366,18 +480,21 @@ export const VerifyQrPage: React.FC = () => {
                 </button>
               )}
 
-              <div className="grid grid-cols-2 gap-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 <button
-                  onClick={handlePrint}
-                  className="py-2.5 px-4 rounded-full bg-white border border-[#E6E2D8] hover:bg-[#F2F0EB] text-[#1E3932] font-bold text-xs transition-colors cursor-pointer flex items-center justify-center gap-2"
+                  type="button"
+                  onClick={handlePrintInvoice}
+                  className="py-2.5 px-3 rounded-full bg-[#006241] hover:bg-[#1E3932] text-white font-bold text-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
+                  title="In hoá đơn đặt sân chính thức qua thư viện PDF"
                 >
-                  <Printer className="w-3.5 h-3.5 text-[#006241]" />
-                  <span>In / Lưu Phiếu Vé</span>
+                  <FileText className="w-3.5 h-3.5 text-emerald-300" />
+                  <span>In Hoá Đơn (PDF)</span>
                 </button>
 
                 <button
+                  type="button"
                   onClick={() => navigate('/user')}
-                  className="py-2.5 px-4 rounded-full bg-[#F2F0EB] hover:bg-[#E6E2D8] text-[#1E3932] font-bold text-xs transition-colors cursor-pointer flex items-center justify-center gap-2"
+                  className="py-2.5 px-3 rounded-full bg-[#F2F0EB] hover:bg-[#E6E2D8] text-[#1E3932] font-bold text-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5"
                 >
                   <span>Về Trang Chủ</span>
                 </button>
@@ -389,3 +506,5 @@ export const VerifyQrPage: React.FC = () => {
     </div>
   );
 };
+
+export default VerifyQrPage;

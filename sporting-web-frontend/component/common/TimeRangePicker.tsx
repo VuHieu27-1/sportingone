@@ -572,8 +572,17 @@ const TimeRangePickerComponent: React.FC<TimeRangePickerProps> = ({
               <input
                 type="text"
                 value={activeField === 'start' ? manualStartInput : internalStartTime}
-                onChange={(e) => setManualStartInput(e.target.value)}
-                onFocus={() => setActiveField('start')}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setManualStartInput(val);
+                  if (/^\d{2}:\d{2}$/.test(val)) {
+                    handleTimeUpdate(val, 'start');
+                  }
+                }}
+                onFocus={() => {
+                  setActiveField('start');
+                  setManualStartInput(internalStartTime);
+                }}
                 onBlur={() => handleManualTimeBlur('start')}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleManualTimeBlur('start');
@@ -591,7 +600,10 @@ const TimeRangePickerComponent: React.FC<TimeRangePickerProps> = ({
 
           {/* Check-out / End Box */}
           <div
-            onClick={() => setActiveField('end')}
+            onClick={() => {
+              setActiveField('end');
+              setManualEndInput(internalEndTime);
+            }}
             className={`flex-1 sm:w-40 p-2.5 rounded-2xl border transition-all cursor-pointer ${
               activeField === 'end'
                 ? 'bg-white border-[#006241] ring-2 ring-[#006241]/20 shadow-xs'
@@ -610,8 +622,17 @@ const TimeRangePickerComponent: React.FC<TimeRangePickerProps> = ({
               <input
                 type="text"
                 value={activeField === 'end' ? manualEndInput : internalEndTime}
-                onChange={(e) => setManualEndInput(e.target.value)}
-                onFocus={() => setActiveField('end')}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setManualEndInput(val);
+                  if (/^\d{2}:\d{2}$/.test(val)) {
+                    handleTimeUpdate(val, 'end');
+                  }
+                }}
+                onFocus={() => {
+                  setActiveField('end');
+                  setManualEndInput(internalEndTime);
+                }}
                 onBlur={() => handleManualTimeBlur('end')}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleManualTimeBlur('end');

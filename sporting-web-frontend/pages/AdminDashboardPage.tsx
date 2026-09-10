@@ -832,7 +832,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   }
 
   return (
-    <div className="min-h-screen bg-[#F2F0EB] text-[#1E3932] font-['Plus_Jakarta_Sans',sans-serif] flex">
+    <div className="min-h-screen lg:h-screen lg:overflow-hidden bg-[#F2F0EB] text-[#1E3932] font-['Plus_Jakarta_Sans',sans-serif] flex">
       <AdminSidebar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -847,7 +847,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
         onCloseMobile={() => setIsMobileSidebarOpen(false)}
       />
 
-      <main className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+      <main className="flex-1 flex flex-col min-w-0 lg:h-full lg:overflow-y-auto">
         <AdminHeader
           activeTab={activeTab}
           searchQuery={searchQuery}

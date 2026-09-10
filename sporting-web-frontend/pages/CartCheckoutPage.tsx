@@ -333,7 +333,7 @@ export const CartCheckoutPage: React.FC<CartCheckoutPageProps> = ({
 
     if (selectedMethod === 'WALLET') {
       if (walletBalance < singleTotal) {
-        toast.error(`Số dư xu không đủ (${walletBalance.toLocaleString('vi-VN')} Xu < ${singleTotal.toLocaleString('vi-VN')} Xu). Vui lòng chọn PayOS hoặc Nạp thêm Xu!`);
+        toast.error(`Số dư xu không đủ (${walletBalance.toLocaleString('vi-VN')} Xu < ${singleTotal.toLocaleString('vi-VN')} Xu). Vui lòng chọn VietQR hoặc Nạp thêm Xu!`);
         return;
       }
 
@@ -438,10 +438,10 @@ export const CartCheckoutPage: React.FC<CartCheckoutPageProps> = ({
           selectedBookings: [targetItem],
         });
       } else {
-        toast.error(res.message || 'Không thể tạo liên kết thanh toán PayOS.');
+        toast.error(res.message || 'Không thể tạo liên kết thanh toán VietQR.');
       }
     } catch {
-      toast.error('Lỗi hệ thống khi tạo liên kết thanh toán PayOS.');
+      toast.error('Lỗi hệ thống khi tạo liên kết thanh toán VietQR.');
     } finally {
       setIsProcessing(false);
     }
@@ -485,7 +485,7 @@ export const CartCheckoutPage: React.FC<CartCheckoutPageProps> = ({
 
     if (paymentMethod === 'WALLET') {
       if (walletBalance < totalSelectedAmount) {
-        toast.error(`Số dư xu không đủ để thanh toán (${walletBalance.toLocaleString('vi-VN')} Xu < ${totalSelectedAmount.toLocaleString('vi-VN')} Xu). Vui lòng chọn PayOS hoặc Nạp thêm Xu!`);
+        toast.error(`Số dư xu không đủ để thanh toán (${walletBalance.toLocaleString('vi-VN')} Xu < ${totalSelectedAmount.toLocaleString('vi-VN')} Xu). Vui lòng chọn VietQR hoặc Nạp thêm Xu!`);
         return;
       }
 
@@ -598,11 +598,11 @@ export const CartCheckoutPage: React.FC<CartCheckoutPageProps> = ({
           selectedBookings: selectedItems,
         });
       } else {
-        toast.error(res.message || 'Không thể tạo link thanh toán gộp PayOS.', { id: 'payos-create-toast' });
+        toast.error(res.message || 'Không thể tạo link thanh toán gộp VietQR.', { id: 'payos-create-toast' });
         await fetchBookings();
       }
     } catch (err: any) {
-      toast.error(err?.message || 'Lỗi khởi tạo giao dịch thanh toán gộp PayOS.', { id: 'payos-create-toast' });
+      toast.error(err?.message || 'Lỗi khởi tạo giao dịch thanh toán gộp VietQR.', { id: 'payos-create-toast' });
       await fetchBookings();
     } finally {
       setIsProcessing(false);
@@ -682,7 +682,7 @@ export const CartCheckoutPage: React.FC<CartCheckoutPageProps> = ({
       isOpen: true,
       count: paidList.length || 1,
       amount: totalPaidAmount > 0 ? totalPaidAmount : (payOSModal.paymentData?.amount || 0),
-      message: 'Thanh toán qua PayOS thành công! Mã QR giữ lịch đã sẵn sàng và được gửi tự động tới Email của bạn.',
+      message: 'Thanh toán thành công! Mã QR giữ lịch đã sẵn sàng và được gửi tự động tới Email của bạn.',
       paidBookings: paidList,
     });
   }, [payOSModal, selectedBookingIds, fetchWallet]);
@@ -693,7 +693,7 @@ export const CartCheckoutPage: React.FC<CartCheckoutPageProps> = ({
   const handleCancelPayOSLink = async (orderCode: number) => {
     try {
       await payosService.cancelPaymentLink(orderCode);
-      toast.success('Đã hủy giao dịch thanh toán PayOS.', { id: 'payos-cancel-toast' });
+      toast.success('Đã hủy giao dịch thanh toán.', { id: 'payos-cancel-toast' });
     } catch {
     } finally {
       setPayOSModal({ isOpen: false, paymentData: null, booking: null });
@@ -860,6 +860,28 @@ export const CartCheckoutPage: React.FC<CartCheckoutPageProps> = ({
         <CartGuaranteeBanner />
       </div>
 
+      {/* Mobile Sticky Bottom Checkout Bar */}
+      {activeStatusTab === 'unpaid' && selectedUnpaidBookings.length > 0 && (
+        <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-[#E6E2D8] px-4 py-3 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] flex items-center justify-between gap-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+          <div className="min-w-0">
+            <span className="text-[10px] font-bold text-[#6F7E72] uppercase tracking-wider block">
+              Đã chọn {selectedUnpaidBookings.length} sân
+            </span>
+            <span className="text-base font-black font-mono text-[#006241]">
+              {totalSelectedAmount.toLocaleString('vi-VN')}đ
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={handleBatchCheckout}
+            disabled={isProcessing}
+            className="flex-1 max-w-[200px] py-3 px-4 rounded-full bg-[#006241] hover:bg-[#1E3932] text-white text-xs font-black uppercase tracking-wider shadow-md active:scale-95 transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+          >
+            <span>Thanh Toán Ngay</span>
+          </button>
+        </div>
+      )}
+
       <DashboardFooter />
 
       <ConfirmModal
@@ -971,7 +993,7 @@ export const CartCheckoutPage: React.FC<CartCheckoutPageProps> = ({
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-extrabold text-[#1E3932]">Thanh Toán Ngân Hàng</span>
                       <span className="px-2 py-0.5 rounded-full bg-[#006241]/10 text-[#006241] text-[10px] font-bold">
-                        PayOS VietQR
+                        VietQR 24/7
                       </span>
                     </div>
                     <p className="text-[11px] text-[#6F7E72]">Quét mã QR qua ứng dụng ngân hàng hoặc MoMo</p>

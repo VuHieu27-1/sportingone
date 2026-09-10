@@ -1,0 +1,82 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: sporting-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASS:-root_password}
+      MYSQL_DATABASE: ${DB_NAME:-sporting_db}
+    ports:
+      - "${DB_PORT:-3306}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./mysql-init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_PASS:-root_password}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - sporting-network
+
+  backend:
+    build:
+      context: ./sporting-web-backend
+      dockerfile: Dockerfile
+    container_name: sporting-backend
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: 3000
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USER: root
+      DB_PASS: ${DB_PASS:-root_password}
+      DB_NAME: ${DB_NAME:-sporting_db}
+    env_file:
+      - path: ./sporting-web-backend/.env
+        required: false
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - sporting-network
+
+  frontend:
+    build:
+      context: ./sporting-web-frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-https://api.sportingone.site/api/v1}
+    container_name: sporting-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-5173}:80"
+    depends_on:
+      - backend
+    networks:
+      - sporting-network
+
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: sporting-phpmyadmin
+    restart: unless-stopped
+    ports:
+      - "${PMA_PORT:-8080}:80"
+    environment:
+      PMA_HOST: mysql
+      PMA_PORT: 3306
+    depends_on:
+      - mysql
+    networks:
+      - sporting-network
+
+volumes:
+  mysql_data:
+
+networks:
+  sporting-network:
+    driver: bridge
