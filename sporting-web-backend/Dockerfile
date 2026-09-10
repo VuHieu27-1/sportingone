@@ -11,6 +11,7 @@ RUN npm ci
 
 # Copy source code and build project
 COPY . .
+RUN mkdir -p /app/src/credential
 RUN npm run build
 
 # Production runner stage
@@ -28,6 +29,7 @@ RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=builder /app/dist ./dist
 
 # Copy credential folder if exists
+RUN mkdir -p ./src/credential
 COPY --from=builder /app/src/credential ./src/credential
 
 EXPOSE 3000
