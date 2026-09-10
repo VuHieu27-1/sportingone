@@ -14,14 +14,9 @@ import {
   Clock,
   MapPin,
   Ticket,
-  Printer,
-  FileText,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { triggerPaymentSuccessCelebration } from '../../utils/celebrationEffects';
-import { printBookingInvoice, printQrPass } from '../common/pdfService';
-import { userProfileService } from '../../services/userProfileService';
-import { tokenManager } from '../../utils/tokenManager';
 
 export interface PaidBookingQrItem {
   id: number;
@@ -115,71 +110,6 @@ export const PaymentSuccessModal: React.FC<PaymentSuccessModalProps> = ({
     } else {
       onViewPaidTab();
     }
-  };
-
-  const handlePrintInvoice = async () => {
-    if (!currentBooking) return;
-    const isMonth = currentBooking.isMonth || (currentBooking as any).bookingType === 'month';
-    const qrImg = getQrImageUrl(currentVerifyUrl);
-    const profile = userProfileService.getCachedProfile();
-    const activeUsername = tokenManager.getActiveUsername();
-
-    const customerName =
-      (currentBooking as any).username ||
-      (profile as any)?.fullName ||
-      (profile as any)?.name ||
-      profile?.username ||
-      activeUsername ||
-      'Khách Hàng';
-    const customerPhone =
-      (currentBooking as any).phone ||
-      (currentBooking as any).userPhone ||
-      profile?.phone ||
-      '';
-    const customerEmail =
-      (currentBooking as any).email ||
-      profile?.email ||
-      '';
-    const vendorAddress = (currentBooking as any).vendorAddress || '';
-
-    await printBookingInvoice({
-      bookingId: currentBooking.id,
-      orderCode: `#BK-${currentBooking.id}`,
-      customerName,
-      customerPhone,
-      customerEmail,
-      vendorName: currentBooking.vendorName || 'Cụm Sân Thể Thao',
-      vendorAddress,
-      yardName: currentBooking.yardName || `Sân #${currentBooking.id}`,
-      bookingDate: new Date().toLocaleDateString('vi-VN'),
-      timeSlot: `${currentBooking.startTime || ''} - ${currentBooking.endTime || ''}`,
-      totalPrice: displayAmount,
-      paymentMethod: 'PayOS / Ví Thể Thao',
-      paymentStatus: 'ĐÃ THANH TOÁN (PAID)',
-      sig: currentBooking.sig,
-      qrImageUrl: qrImg,
-      verifyUrl: currentVerifyUrl,
-      isMonth,
-    });
-  };
-
-  const handlePrintQrPass = async () => {
-    if (!currentBooking) return;
-    const isMonth = currentBooking.isMonth || (currentBooking as any).bookingType === 'month';
-    const qrImg = getQrImageUrl(currentVerifyUrl);
-
-    await printQrPass({
-      bookingId: currentBooking.id,
-      yardName: currentBooking.yardName || `Sân #${currentBooking.id}`,
-      vendorName: currentBooking.vendorName || 'Cụm Sân Thể Thao',
-      bookingDate: new Date().toLocaleDateString('vi-VN'),
-      timeSlot: `${currentBooking.startTime || ''} - ${currentBooking.endTime || ''}`,
-      qrImageUrl: qrImg,
-      verifyUrl: currentVerifyUrl,
-      sig: currentBooking.sig,
-      totalPrice: displayAmount,
-      isMonth,
-    });
   };
 
   const displayAmount = totalAmount && totalAmount > 0
@@ -358,29 +288,7 @@ export const PaymentSuccessModal: React.FC<PaymentSuccessModalProps> = ({
         </div>
 
         {/* ================= ACTION FOOTER ================= */}
-        <div className="p-4 bg-white border-t border-slate-100 space-y-2">
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={handlePrintInvoice}
-              className="py-2.5 px-3 rounded-xl bg-[#006241] hover:bg-[#1E3932] text-white text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
-              title="In hoá đơn qua thư viện PDF"
-            >
-              <FileText className="w-3.5 h-3.5 text-emerald-300" />
-              <span>In Hoá Đơn (PDF)</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={handlePrintQrPass}
-              className="py-2.5 px-3 rounded-xl bg-white border border-[#006241] hover:bg-emerald-50 text-[#006241] text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
-              title="In vé QR qua thư viện PDF"
-            >
-              <Printer className="w-3.5 h-3.5 text-[#006241]" />
-              <span>In Vé QR (PDF)</span>
-            </button>
-          </div>
-
+        <div className="p-4 bg-white border-t border-slate-100">
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
