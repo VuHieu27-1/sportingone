@@ -44,6 +44,7 @@ export const UserProfilePage: React.FC<UserProfilePageProps> = ({ currentUser, o
   };
 
   const [activeTab, setActiveTabState] = useState<ProfileTabKey>(getInitialTab);
+  const [visitedTabs, setVisitedTabs] = useState<Set<ProfileTabKey>>(() => new Set([getInitialTab()]));
   const [profile, setProfile] = useState<UserProfileDetails | null>(() => userProfileService.getCachedProfile());
   const [isLoading, setIsLoading] = useState<boolean>(() => !userProfileService.getCachedProfile());
   const [walletBalance, setWalletBalance] = useState<number>(0);
@@ -137,7 +138,12 @@ export const UserProfilePage: React.FC<UserProfilePageProps> = ({ currentUser, o
   }, []);
 
   const handleTabChange = (newTab: ProfileTabKey) => {
+    if (newTab === activeTab) return;
     setActiveTabState(newTab);
+    setVisitedTabs((prev) => (prev.has(newTab) ? prev : new Set(prev).add(newTab)));
+    if (typeof window !== 'undefined' && window.scrollY > 80) {
+      window.scrollTo({ top: 0, behavior: 'instant' });
+    }
     try {
       sessionStorage.setItem('sporting_profile_active_tab', newTab);
       setSearchParams({ tab: newTab }, { replace: true });
@@ -146,10 +152,12 @@ export const UserProfilePage: React.FC<UserProfilePageProps> = ({ currentUser, o
 
   useEffect(() => {
     const tabParam = searchParams.get('tab');
-    if (tabParam && ['profile', 'booked-yards', 'vendor', 'wallet', 'settings', 'help'].includes(tabParam)) {
-      setActiveTabState(tabParam as ProfileTabKey);
+    if (tabParam && tabParam !== activeTab && ['profile', 'booked-yards', 'vendor', 'wallet', 'settings', 'help'].includes(tabParam)) {
+      const validTab = tabParam as ProfileTabKey;
+      setActiveTabState(validTab);
+      setVisitedTabs((prev) => (prev.has(validTab) ? prev : new Set(prev).add(validTab)));
     }
-  }, [searchParams]);
+  }, [searchParams, activeTab]);
 
   const fetchWalletBalance = useCallback(async () => {
     const token = tokenManager.getActiveToken();
@@ -667,8 +675,8 @@ export const UserProfilePage: React.FC<UserProfilePageProps> = ({ currentUser, o
         </div>
       </header>
 
-      <div className="flex-1 max-w-[1440px] w-full mx-auto px-4 sm:px-6 lg:px-10 pt-20 sm:pt-24 pb-10 flex flex-col md:flex-row gap-6 min-w-0">
-        <aside className="w-full md:w-64 shrink-0 space-y-4 min-w-0 max-w-full">
+      <div className="flex-1 max-w-[1440px] w-full mx-auto px-4 sm:px-6 lg:px-10 pt-20 sm:pt-24 pb-10 flex flex-col md:flex-row items-start gap-6 min-w-0">
+        <aside className="w-full md:w-64 shrink-0 space-y-4 min-w-0 max-w-full md:sticky md:top-24">
           <div className="p-4 sm:p-5 rounded-[28px] bg-white border border-[#E6E2D8] shadow-md space-y-4 sm:space-y-6 min-w-0 max-w-full overflow-hidden md:overflow-visible">
             <div className="p-4 rounded-2xl bg-[#F2F0EB]/70 border border-[#E6E2D8] text-center min-w-0">
               <div className="relative w-16 h-16 mx-auto mb-2 group">
@@ -754,7 +762,7 @@ export const UserProfilePage: React.FC<UserProfilePageProps> = ({ currentUser, o
           </div>
         </aside>
 
-        <main key={activeTab} className="flex-1 space-y-6 min-w-0 w-full max-w-full">
+        <main className="flex-1 space-y-6 min-w-0 w-full max-w-full">
           <div className="p-3.5 sm:p-5 rounded-[24px] bg-white border border-[#E6E2D8] shadow-sm flex items-center justify-between gap-2 min-w-0">
             <div className="flex items-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs font-mono font-bold text-[#6F7E72] min-w-0 flex-1">
               <span className="shrink-0">Tài Khoản</span>
@@ -772,43 +780,59 @@ export const UserProfilePage: React.FC<UserProfilePageProps> = ({ currentUser, o
             </div>
           </div>
 
-          <div className="animate-tab-transition">
-            {activeTab === 'profile' && (
-              <ProfileInfoTab
-                profile={profile}
-                onProfileUpdated={loadProfileData}
-                onAvatarClick={() => profile?.avatar && setIsPreviewAvatarOpen(true)}
-              />
-            )}
-
-            {activeTab === 'booked-yards' && (
-              <BookedYardsTab
-                currentUser={currentUser}
-                onCountsChange={({ upcoming }) => setUpcomingBookingsCount(upcoming)}
-              />
-            )}
-
-            {activeTab === 'vendor' && <VendorManagementTab />}
-
-            {activeTab === 'wallet' && <WalletTab />}
-
-            {activeTab === 'settings' && (
-              <div className="p-8 text-center rounded-[28px] bg-white border border-[#E6E2D8] shadow-sm space-y-3">
-                <Settings className="w-10 h-10 text-[#006241] mx-auto" />
-                <h3 className="text-base font-extrabold text-[#1E3932]">Cài Đặt Bảo Mật &amp; Thông Báo</h3>
-                <p className="text-xs text-[#6F7E72] max-w-md mx-auto">
-                  Tính năng thay đổi mật khẩu, xác thực 2 lớp (2FA) và cấu hình nhận email thông báo đang được nâng cấp.
-                </p>
+          <div className="min-h-[calc(100vh-200px)] sm:min-h-[680px]">
+            {visitedTabs.has('profile') && (
+              <div className={activeTab === 'profile' ? 'animate-tab-transition' : 'hidden'}>
+                <ProfileInfoTab
+                  profile={profile}
+                  onProfileUpdated={loadProfileData}
+                  onAvatarClick={() => profile?.avatar && setIsPreviewAvatarOpen(true)}
+                />
               </div>
             )}
 
-            {activeTab === 'help' && (
-              <div className="p-8 text-center rounded-[28px] bg-white border border-[#E6E2D8] shadow-sm space-y-3">
-                <HelpCircle className="w-10 h-10 text-[#006241] mx-auto" />
-                <h3 className="text-base font-extrabold text-[#1E3932]">Trung Tâm Hỗ Trợ Khách Hàng Sporting ONE</h3>
-                <p className="text-xs text-[#6F7E72] max-w-md mx-auto">
-                  Hotline hỗ trợ 24/7: <strong className="text-[#1E3932] font-mono">{SUPPORT_PHONE}</strong> · Email: <strong className="text-[#1E3932] font-mono">{SUPPORT_EMAIL}</strong>
-                </p>
+            {visitedTabs.has('booked-yards') && (
+              <div className={activeTab === 'booked-yards' ? 'animate-tab-transition' : 'hidden'}>
+                <BookedYardsTab
+                  currentUser={currentUser}
+                  onCountsChange={({ upcoming }) => setUpcomingBookingsCount(upcoming)}
+                />
+              </div>
+            )}
+
+            {visitedTabs.has('vendor') && (
+              <div className={activeTab === 'vendor' ? 'animate-tab-transition' : 'hidden'}>
+                <VendorManagementTab />
+              </div>
+            )}
+
+            {visitedTabs.has('wallet') && (
+              <div className={activeTab === 'wallet' ? 'animate-tab-transition' : 'hidden'}>
+                <WalletTab />
+              </div>
+            )}
+
+            {visitedTabs.has('settings') && (
+              <div className={activeTab === 'settings' ? 'animate-tab-transition' : 'hidden'}>
+                <div className="p-8 text-center rounded-[28px] bg-white border border-[#E6E2D8] shadow-sm space-y-3">
+                  <Settings className="w-10 h-10 text-[#006241] mx-auto" />
+                  <h3 className="text-base font-extrabold text-[#1E3932]">Cài Đặt Bảo Mật &amp; Thông Báo</h3>
+                  <p className="text-xs text-[#6F7E72] max-w-md mx-auto">
+                    Tính năng thay đổi mật khẩu, xác thực 2 lớp (2FA) và cấu hình nhận email thông báo đang được nâng cấp.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {visitedTabs.has('help') && (
+              <div className={activeTab === 'help' ? 'animate-tab-transition' : 'hidden'}>
+                <div className="p-8 text-center rounded-[28px] bg-white border border-[#E6E2D8] shadow-sm space-y-3">
+                  <HelpCircle className="w-10 h-10 text-[#006241] mx-auto" />
+                  <h3 className="text-base font-extrabold text-[#1E3932]">Trung Tâm Hỗ Trợ Khách Hàng Sporting ONE</h3>
+                  <p className="text-xs text-[#6F7E72] max-w-md mx-auto">
+                    Hotline hỗ trợ 24/7: <strong className="text-[#1E3932] font-mono">{SUPPORT_PHONE}</strong> · Email: <strong className="text-[#1E3932] font-mono">{SUPPORT_EMAIL}</strong>
+                  </p>
+                </div>
               </div>
             )}
           </div>
