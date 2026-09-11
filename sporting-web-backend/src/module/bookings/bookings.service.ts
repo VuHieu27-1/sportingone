@@ -433,6 +433,8 @@ export class BookingsService {
     if (query?.yardId) {
       qb.andWhere('yard.id = :yardId', { yardId: query.yardId });
       monthQb.andWhere('yard.id = :yardId', { yardId: query.yardId });
+      qb.andWhere('booking.ondeleted IS NULL');
+      monthQb.andWhere('bookingMonth.ondeleted IS NULL');
     }
 
     if (query?.vendorId) {

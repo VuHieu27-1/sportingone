@@ -124,7 +124,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
   useEffect(() => {
     if (!yard?.id) return;
     let isMounted = true;
-    bookingService.fetchBookingsByYard(yard.id).then((res) => {
+    bookingService.fetchBookingsByYard(yard.id, undefined, 'paid').then((res) => {
       if (isMounted && res.success && Array.isArray(res.data)) {
         setYardBookings(res.data);
       }
@@ -146,11 +146,33 @@ export const BookingModal: React.FC<BookingModalProps> = ({
   const existingIntervals: BookingInterval[] = useMemo(() => {
     return yardBookings
       .filter((b) => {
-        if (b.status === 'cancelled') return false;
+        const bStatus = String(b.status || '').toLowerCase().trim();
+        if (bStatus !== 'paid') return false;
         if (!b.startTime) return false;
-        const bDate = b.startTime.includes('T')
-          ? b.startTime.split('T')[0]
-          : selectedDate;
+
+        const isMonthly = Boolean(b.startDate || (b as any).itemType === 'monthly');
+        if (isMonthly && b.startDate && b.endDate) {
+          const sDate = String(b.startDate).slice(0, 10);
+          const eDate = String(b.endDate).slice(0, 10);
+          return selectedDate >= sDate && selectedDate <= eDate;
+        }
+
+        // Daily booking: match local date
+        let bDate = '';
+        if (b.startTime.includes('T')) {
+          const d = new Date(b.startTime);
+          if (!isNaN(d.getTime())) {
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            bDate = `${y}-${m}-${day}`;
+          } else {
+            bDate = b.startTime.split('T')[0];
+          }
+        } else {
+          bDate = b.startTime.split(' ')[0];
+        }
+
         return bDate === selectedDate;
       })
       .map((b) => {
@@ -160,13 +182,15 @@ export const BookingModal: React.FC<BookingModalProps> = ({
           const d = new Date(b.startTime);
           sStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
         } else if (b.startTime.includes(':')) {
-          sStr = b.startTime;
+          const parts = b.startTime.split(':');
+          sStr = `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
         }
         if (b.endTime && b.endTime.includes('T')) {
           const d = new Date(b.endTime);
           eStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
         } else if (b.endTime && b.endTime.includes(':')) {
-          eStr = b.endTime;
+          const parts = b.endTime.split(':');
+          eStr = `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
         }
         return {
           startTime: sStr,
@@ -872,6 +896,11 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                 title={`Đặt Sân: ${yard.yardName}`}
                 confirmText="Lưu Khung Giờ Đã Chọn"
                 cancelText="Đóng"
+                onChange={(val) => {
+                  if (val.date && val.date !== selectedDate) {
+                    setSelectedDate(val.date);
+                  }
+                }}
                 onConfirm={handleTimePickerConfirm}
                 onCancel={handleTimePickerClose}
                 className="h-full"
